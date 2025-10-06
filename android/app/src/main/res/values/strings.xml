@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Study Mode</string>
+    <string name="device_admin_description">Allow Study Mode to manage app blocking and focus sessions</string>
+    <string name="app_blocking_notification_title">Study Mode Active</string>
+    <string name="app_blocking_notification_text">Blocking distracting apps during study session</string>
+    <string name="blocked_app_message">This app is blocked during study sessions. Focus on your studies!</string>
+</resources>
