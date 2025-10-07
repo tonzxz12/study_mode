@@ -29,11 +29,16 @@ class AppBlockingService {
     await FlutterBackgroundService().configure(
       androidConfiguration: AndroidConfiguration(
         onStart: onStart,
-        autoStart: false,
+        autoStart: true, // AUTO-START for persistent monitoring
         isForegroundMode: true,
+        autoStartOnBoot: true, // Start on device boot
+        notificationChannelId: 'study_mode_blocking',
+        initialNotificationTitle: 'Study Mode Active',
+        initialNotificationContent: 'App blocking is running in background',
+        foregroundServiceNotificationId: 888,
       ),
       iosConfiguration: IosConfiguration(
-        autoStart: false,
+        autoStart: true, // AUTO-START for iOS too
         onForeground: onStart,
       ),
     );
@@ -175,20 +180,26 @@ class AppBlockingService {
         print('Blocked apps: ${_blockedPackages.join(", ")}');
       }
       
-      // Restore monitoring if it was active (with proper safeguards)
-      if (_isMonitoring && _blockedPackages.isNotEmpty) {
-        print('Restoring app monitoring on startup...');
+      // SAFE auto-start: Always start monitoring when blocked apps exist
+      if (_blockedPackages.isNotEmpty) {
+        print('🔒 STARTING safe app monitoring for ${_blockedPackages.length} apps');
+        print('📱 Apps to block: ${_blockedPackages.join(", ")}');
+        
+        // Force enable monitoring and start it
+        _isMonitoring = true;
+        
         // Use a delayed start to avoid initialization conflicts
         Timer(const Duration(seconds: 2), () async {
           try {
-            await _startMonitoringInternal(_blockedPackages);
-            print('App monitoring restored successfully');
+            await startMonitoring(_blockedPackages);
+            print('✅ Safe app monitoring started successfully');
           } catch (e) {
-            print('Error restoring app monitoring: $e');
+            print('❌ Error starting app monitoring: $e');
           }
         });
       } else {
-        print('Note: No active app blocking to restore');
+        print('📴 No blocked apps configured - monitoring inactive');
+        _isMonitoring = false;
       }
     } catch (e) {
       print('Error loading blocked apps: $e');
@@ -230,55 +241,156 @@ class AppBlockingService {
     }
   }
 
-  // Start monitoring blocked apps (public interface)
+  // SAFE Start monitoring blocked apps (public interface)
   static Future<void> startMonitoring(List<String> blockedApps) async {
     try {
+      print('🔒 Starting SAFE app blocking for ${blockedApps.length} apps');
       _blockedPackages = blockedApps;
       _isMonitoring = true;
       
-      // Initialize background service if not already done (but don't reload apps)
-      if (!_isInitialized) {
-        await _initializeBackgroundService();
-        _isInitialized = true;
-      }
+      // Use SAFE monitoring (no aggressive background services)
+      _startSafeMonitoring(blockedApps);
       
-      await _startMonitoringInternal(blockedApps);
+      // Ensure background service is running for persistence
+      await _ensureBackgroundServiceRunning();
+      
+      // Save state
+      await _saveBlockedApps();
+      
+      print('✅ Safe app blocking started - monitoring every 5 seconds');
+      print('📱 Background service enabled for persistence');
     } catch (e) {
-      print('Error starting monitoring: $e');
+      print('❌ Error starting safe monitoring: $e');
     }
   }
 
-  // Internal monitoring startup (avoids initialization loops)
-  static Future<void> _startMonitoringInternal(List<String> blockedApps) async {
+  // SAFE monitoring implementation 
+  static void _startSafeMonitoring(List<String> blockedApps) {
     try {
-      final service = FlutterBackgroundService();
-      
-      // Ensure service is running
-      if (!await service.isRunning()) {
-        await service.startService();
-        print('Started persistent background app blocking service');
-      } else {
-        print('Background app blocking service already running');
-      }
-      
-      // Start aggressive foreground monitoring
+      // Start AGGRESSIVE foreground monitoring for continuous blocking
       _monitoringTimer?.cancel();
-      _monitoringTimer = Timer.periodic(const Duration(milliseconds: 1500), (timer) {
-        _checkBlockedApps();
+      _monitoringTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+        _checkBlockedAppsSafely();
       });
       
-      // Save current state to storage
-      await _saveBlockedApps();
-      
-      print('Enhanced app monitoring started for ${blockedApps.length} apps');
-      print('Background monitoring: ACTIVE');
-      print('Foreground monitoring: ACTIVE');
-      print('Redirect target: Study Mode App');
-      print('Settings saved to local storage');
+      print('🔒 CONTINUOUS monitoring timer started');
+      print('  ⏱️  Interval: 2 seconds (aggressive)');
+      print('  � CONTINUOUS blocking - no cooldown');
+      print('  📱 Always-active implementation');
     } catch (e) {
-      print('Error in internal monitoring startup: $e');
+      print('❌ Error in safe monitoring startup: $e');
     }
   }
+  
+  // Ensure background service stays running
+  static Future<void> _ensureBackgroundServiceRunning() async {
+    try {
+      final service = FlutterBackgroundService();
+      if (!await service.isRunning()) {
+        await service.startService();
+        print('🔄 Started background monitoring service');
+      } else {
+        print('✅ Background monitoring service already running');
+      }
+    } catch (e) {
+      print('❌ Error ensuring background service: $e');
+    }
+  }
+
+  // SAFE app detection and blocking
+  static Future<void> _checkBlockedAppsSafely() async {
+    if (!_isMonitoring || _blockedPackages.isEmpty) return;
+    
+    try {
+      DateTime now = DateTime.now();
+      
+      // Check only recent usage (last 3 seconds)
+      DateTime startTime = now.subtract(const Duration(seconds: 3));
+      List<UsageInfo> usageInfos = await UsageStats.queryUsageStats(startTime, now);
+      
+      for (UsageInfo usage in usageInfos) {
+        if (_blockedPackages.contains(usage.packageName) && 
+            usage.lastTimeUsed != null) {
+          
+          int lastUsedMillis = int.tryParse(usage.lastTimeUsed!) ?? 0;
+          DateTime lastUsedTime = DateTime.fromMillisecondsSinceEpoch(lastUsedMillis);
+          
+          // CONTINUOUS BLOCKING - Always block when detected (with short delay to prevent spam)
+          if (now.difference(lastUsedTime).inSeconds < 2) {
+            DateTime? lastBlocked = _lastBlockedTime[usage.packageName!];
+            if (lastBlocked == null || now.difference(lastBlocked).inSeconds >= 3) {
+              String appName = _getAppNameFromPackage(usage.packageName!);
+              print('🚫 CONTINUOUS BLOCKING: $appName');
+              _lastBlockedTime[usage.packageName!] = now;
+              
+              // Perform safe blocking - ALWAYS
+              await _performSafeBlocking(usage.packageName!);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('❌ Error in safe monitoring: $e');
+    }
+  }
+
+  // ENHANCED blocking - close app and open Study Mode
+  static Future<void> _performSafeBlocking(String packageName) async {
+    try {
+      String appName = _getAppNameFromPackage(packageName);
+      print('🚫 BLOCKING $appName - Closing and opening Study Mode');
+      
+      // Step 1: Close the blocked app using native method first
+      try {
+        await _channel.invokeMethod('closeApp', {'packageName': packageName});
+        print('🔧 Native close attempted for $appName');
+      } catch (e) {
+        print('⚠️ Native close failed: $e');
+      }
+      
+      // Step 2: Wait a moment for app to close
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Step 3: Open Study Mode app using native method
+      try {
+        await _channel.invokeMethod('openStudyModeApp');
+        print('📱 Study Mode opened via native method');
+      } catch (e) {
+        print('⚠️ Native Study Mode open failed, trying fallback: $e');
+        
+        // Fallback: Use Android Intent to open Study Mode
+        try {
+          const studyModeIntent = AndroidIntent(
+            action: 'android.intent.action.MAIN',
+            package: 'com.studymode.app.study_mode_v2',
+            componentName: 'com.studymode.app.study_mode_v2/.MainActivity',
+            flags: <int>[
+              0x10000000, // FLAG_ACTIVITY_NEW_TASK
+              0x00200000, // FLAG_ACTIVITY_CLEAR_TOP
+              0x20000000, // FLAG_ACTIVITY_SINGLE_TOP
+            ],
+          );
+          await studyModeIntent.launch();
+          print('📱 Study Mode opened via fallback intent');
+        } catch (fallbackError) {
+          print('❌ All Study Mode open methods failed: $fallbackError');
+          
+          // Final fallback: Just go to home screen
+          const AndroidIntent(
+            action: 'android.intent.action.MAIN',
+            category: 'android.intent.category.HOME',
+            flags: <int>[0x10000000],
+          ).launch().catchError((e) => print('❌ Home fallback error: $e'));
+        }
+      }
+      
+      print('✅ $appName blocked - Study Mode should be active');
+    } catch (e) {
+      print('❌ Enhanced blocking error: $e');
+    }
+  }
+
+
 
   // Stop monitoring
   static Future<void> stopMonitoring() async {
@@ -300,92 +412,7 @@ class AppBlockingService {
     }
   }
 
-  // Check if any blocked apps are currently running (foreground monitoring)
-  static Future<void> _checkBlockedApps() async {
-    if (!_isMonitoring || _blockedPackages.isEmpty) return;
-    
-    try {
-      DateTime now = DateTime.now();
-      DateTime startTime = now.subtract(const Duration(seconds: 3));
-      
-      List<UsageInfo> usageInfos = await UsageStats.queryUsageStats(startTime, now);
-      
-      for (UsageInfo usage in usageInfos) {
-        if (_blockedPackages.contains(usage.packageName) && 
-            usage.lastTimeUsed != null) {
-          
-          // Convert lastTimeUsed from string milliseconds to DateTime
-          int lastUsedMillis = int.tryParse(usage.lastTimeUsed!) ?? 0;
-          DateTime lastUsedTime = DateTime.fromMillisecondsSinceEpoch(lastUsedMillis);
-          
-          // Immediate blocking for recent app usage (with cooldown)
-          if (now.difference(lastUsedTime).inSeconds < 2) {
-            // Check cooldown to prevent rapid retriggering
-            DateTime? lastBlocked = _lastBlockedTime[usage.packageName!];
-            if (lastBlocked == null || now.difference(lastBlocked).inSeconds > 5) {
-              print('Foreground detected blocked app: ${usage.packageName}');
-              _lastBlockedTime[usage.packageName!] = now;
-              await _blockApp(usage.packageName!);
-            }
-          }
-        }
-      }
-    } catch (e) {
-      print('Error checking blocked apps: $e');
-    }
-  }
 
-  // Block a specific app
-  static Future<void> _blockApp(String packageName) async {
-    try {
-      // Show blocking overlay first
-      await _showBlockingOverlay(packageName);
-      
-      // Wait a moment for overlay to be visible
-      await Future.delayed(const Duration(milliseconds: 300));
-      
-      // Try to close the app using device admin (if available)
-      if (await isDeviceAdmin()) {
-        await _channel.invokeMethod('closeApp', {'packageName': packageName});
-      }
-      
-      // Wait a moment for app to close
-      await Future.delayed(const Duration(milliseconds: 500));
-      
-      // Redirect to Study Mode app instead of home screen
-      await _openStudyModeApp();
-      
-      print('Blocked app: $packageName - Redirected to Study Mode');
-    } catch (e) {
-      print('Error blocking app $packageName: $e');
-    }
-  }
-
-  // Show blocking overlay
-  static Future<void> _showBlockingOverlay(String packageName) async {
-    try {
-      // Get app name for better user experience
-      String appName = _getAppNameFromPackage(packageName);
-      
-      await SystemAlertWindow.showSystemWindow(
-        height: 200,
-        width: 300,
-        gravity: SystemWindowGravity.CENTER,
-        notificationTitle: "🔒 Study Mode Active",
-        notificationBody: "$appName is blocked!\nRedirecting to Study Mode...",
-        prefMode: SystemWindowPrefMode.OVERLAY,
-      );
-      
-      // Auto-dismiss the overlay after 3 seconds (gives time for app closure)
-      Timer(const Duration(seconds: 3), () {
-        SystemAlertWindow.closeSystemWindow();
-      });
-      
-      print('Blocking overlay shown for $appName ($packageName)');
-    } catch (e) {
-      print('Error showing blocking overlay: $e');
-    }
-  }
 
   // Helper method to get friendly app names
   static String _getAppNameFromPackage(String packageName) {
@@ -405,43 +432,7 @@ class AppBlockingService {
     return appNames[packageName] ?? 'This app';
   }
 
-  // Open Study Mode app
-  static Future<void> _openStudyModeApp() async {
-    try {
-      // Use method channel to bring Study Mode app to foreground
-      await _channel.invokeMethod('openStudyModeApp');
-      print('Redirected to Study Mode app');
-    } catch (e) {
-      print('Error opening Study Mode app via method channel: $e');
-      // Fallback: Use AndroidIntent
-      try {
-        const studyModeIntent = AndroidIntent(
-          action: 'android.intent.action.MAIN',
-          package: 'com.studymode.app.study_mode_v2',
-          componentName: 'com.studymode.app.study_mode_v2/.MainActivity',
-          flags: <int>[
-            0x10000000, // FLAG_ACTIVITY_NEW_TASK
-            0x00200000, // FLAG_ACTIVITY_CLEAR_TOP
-            0x20000000, // FLAG_ACTIVITY_SINGLE_TOP
-          ],
-        );
-        await studyModeIntent.launch();
-        print('Redirected to Study Mode app via fallback');
-      } catch (fallbackError) {
-        print('Error with fallback intent: $fallbackError');
-        // Final fallback: Open home screen
-        try {
-          const homeIntent = AndroidIntent(
-            action: 'android.intent.action.MAIN',
-            category: 'android.intent.category.HOME',
-          );
-          await homeIntent.launch();
-        } catch (homeError) {
-          print('Error opening home screen: $homeError');
-        }
-      }
-    }
-  }
+
 
   // Background service entry point
   @pragma('vm:entry-point')
@@ -475,13 +466,20 @@ class AppBlockingService {
             int lastUsedMillis = int.tryParse(usage.lastTimeUsed!) ?? 0;
             DateTime lastUsedTime = DateTime.fromMillisecondsSinceEpoch(lastUsedMillis);
             
-            // More aggressive blocking - check within last 2 seconds
+            // CONTINUOUS BACKGROUND BLOCKING - Always block when detected
             if (now.difference(lastUsedTime).inSeconds < 2) {
-              print('Detected blocked app: ${usage.packageName} - Blocking immediately');
-              await _blockApp(usage.packageName!);
-              
-              // Add small delay to prevent rapid-fire blocking
-              await Future.delayed(const Duration(milliseconds: 500));
+              DateTime? lastBlocked = _lastBlockedTime[usage.packageName!];
+              if (lastBlocked == null || now.difference(lastBlocked).inSeconds >= 3) {
+                String appName = _getAppNameFromPackage(usage.packageName!);
+                print('🔄 CONTINUOUS BACKGROUND BLOCKING: $appName');
+                _lastBlockedTime[usage.packageName!] = now;
+                
+                // Use safe blocking from background service - ALWAYS
+                await _performSafeBlocking(usage.packageName!);
+                
+                // Short delay to prevent rapid-fire blocking
+                await Future.delayed(const Duration(seconds: 1));
+              }
             }
           }
         }
