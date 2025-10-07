@@ -315,16 +315,17 @@ class AppBlockingService {
           int lastUsedMillis = int.tryParse(usage.lastTimeUsed!) ?? 0;
           DateTime lastUsedTime = DateTime.fromMillisecondsSinceEpoch(lastUsedMillis);
           
-          // CONTINUOUS BLOCKING - Always block when detected (with short delay to prevent spam)
+          // IMMEDIATE BLOCKING - Always block when detected (minimal cooldown)
           if (now.difference(lastUsedTime).inSeconds < 2) {
             DateTime? lastBlocked = _lastBlockedTime[usage.packageName!];
-            if (lastBlocked == null || now.difference(lastBlocked).inSeconds >= 3) {
+            if (lastBlocked == null || now.difference(lastBlocked).inSeconds >= 1) {
               String appName = _getAppNameFromPackage(usage.packageName!);
-              print('🚫 CONTINUOUS BLOCKING: $appName');
+              print('🚫🚫🚫 FOREGROUND BLOCKING: $appName - IMMEDIATE ACTION!');
               _lastBlockedTime[usage.packageName!] = now;
               
-              // Perform safe blocking - ALWAYS
+              // Perform aggressive blocking - ALWAYS
               await _performSafeBlocking(usage.packageName!);
+              print('⚡ $appName blocked by foreground monitor');
             }
           }
         }
@@ -348,40 +349,75 @@ class AppBlockingService {
         print('⚠️ Native close failed: $e');
       }
       
-      // Step 2: Wait a moment for app to close
-      await Future.delayed(const Duration(milliseconds: 500));
-      
-      // Step 3: Open Study Mode app using native method
+      // Step 2: Show blocking alert notification
       try {
+        await _channel.invokeMethod('showBlockingToast', {
+          'message': '$appName is BLOCKED! Study Mode is active. Go focus! 🎯'
+        });
+        print('📢 Alert shown for blocked $appName');
+      } catch (alertError) {
+        print('⚠️ Alert failed: $alertError');
+      }
+      
+      // Step 3: Wait a moment for app to close and alert to show
+      await Future.delayed(const Duration(milliseconds: 800));
+      
+      // Step 4: ENSURE Study Mode opens - try multiple methods for guaranteed success
+      bool studyModeOpened = false;
+      print('🔄 Starting Study Mode opening attempts...');
+      
+      // Method 1: Try native openStudyModeApp first
+      try {
+        print('🔄 Attempt 1: Native openStudyModeApp');
         await _channel.invokeMethod('openStudyModeApp');
-        print('📱 Study Mode opened via native method');
+        print('✅ SUCCESS: Study Mode opened via native method');
+        studyModeOpened = true;
       } catch (e) {
-        print('⚠️ Native Study Mode open failed, trying fallback: $e');
-        
-        // Fallback: Use Android Intent to open Study Mode
+        print('❌ Native method failed: $e');
+      }
+      
+      // Method 2: If native failed, try Android Intent
+      if (!studyModeOpened) {
         try {
+          print('🔄 Attempt 2: Android Intent launch');
           const studyModeIntent = AndroidIntent(
             action: 'android.intent.action.MAIN',
             package: 'com.studymode.app.study_mode_v2',
-            componentName: 'com.studymode.app.study_mode_v2/.MainActivity',
             flags: <int>[
               0x10000000, // FLAG_ACTIVITY_NEW_TASK
               0x00200000, // FLAG_ACTIVITY_CLEAR_TOP
-              0x20000000, // FLAG_ACTIVITY_SINGLE_TOP
             ],
           );
           await studyModeIntent.launch();
-          print('📱 Study Mode opened via fallback intent');
-        } catch (fallbackError) {
-          print('❌ All Study Mode open methods failed: $fallbackError');
-          
-          // Final fallback: Just go to home screen
-          const AndroidIntent(
-            action: 'android.intent.action.MAIN',
-            category: 'android.intent.category.HOME',
-            flags: <int>[0x10000000],
-          ).launch().catchError((e) => print('❌ Home fallback error: $e'));
+          print('✅ SUCCESS: Study Mode opened via Android Intent');
+          studyModeOpened = true;
+        } catch (intentError) {
+          print('❌ Android Intent failed: $intentError');
         }
+      }
+      
+      // Method 3: Last resort - simple package launch
+      if (!studyModeOpened) {
+        try {
+          print('🔄 Attempt 3: Simple package launch');
+          const simpleIntent = AndroidIntent(
+            action: 'android.intent.action.MAIN',
+            package: 'com.studymode.app.study_mode_v2',
+            flags: <int>[0x10000000],
+          );
+          await simpleIntent.launch();
+          print('✅ SUCCESS: Study Mode opened via simple launch');
+          studyModeOpened = true;
+        } catch (simpleError) {
+          print('❌ Simple launch failed: $simpleError');
+        }
+      }
+      
+      // Final status report
+      if (studyModeOpened) {
+        print('🎯 MISSION ACCOMPLISHED: Study Mode is now open!');
+      } else {
+        print('💥 CRITICAL: ALL Study Mode opening methods failed!');
       }
       
       print('✅ $appName blocked - Study Mode should be active');
@@ -466,19 +502,22 @@ class AppBlockingService {
             int lastUsedMillis = int.tryParse(usage.lastTimeUsed!) ?? 0;
             DateTime lastUsedTime = DateTime.fromMillisecondsSinceEpoch(lastUsedMillis);
             
-            // CONTINUOUS BACKGROUND BLOCKING - Always block when detected
+            // IMMEDIATE BLOCKING - Always block when detected (minimal cooldown)
             if (now.difference(lastUsedTime).inSeconds < 2) {
               DateTime? lastBlocked = _lastBlockedTime[usage.packageName!];
-              if (lastBlocked == null || now.difference(lastBlocked).inSeconds >= 3) {
+              if (lastBlocked == null || now.difference(lastBlocked).inSeconds >= 1) {
                 String appName = _getAppNameFromPackage(usage.packageName!);
-                print('🔄 CONTINUOUS BACKGROUND BLOCKING: $appName');
+                print('�🚫🚫 IMMEDIATE BLOCKING: $appName - NO ESCAPE!');
                 _lastBlockedTime[usage.packageName!] = now;
                 
-                // Use safe blocking from background service - ALWAYS
+                // Use aggressive blocking from background service - ALWAYS
                 await _performSafeBlocking(usage.packageName!);
+                print('⚡ $appName blocking completed by background service');
                 
-                // Short delay to prevent rapid-fire blocking
-                await Future.delayed(const Duration(seconds: 1));
+                // Minimal delay to prevent rapid-fire
+                await Future.delayed(const Duration(milliseconds: 500));
+              } else {
+                print('🔄 ${usage.packageName} still in cooldown - ${now.difference(lastBlocked).inSeconds}s ago');
               }
             }
           }

@@ -6,6 +6,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.widget.Toast
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -63,6 +64,19 @@ class MainActivity : FlutterActivity() {
                         result.success(true)
                     } catch (e: Exception) {
                         result.error("ERROR", "Failed to open Study Mode app", e.message)
+                    }
+                }
+                "showBlockingToast" -> {
+                    try {
+                        val message = call.argument<String>("message")
+                        if (message != null) {
+                            showBlockingToast(message)
+                            result.success(true)
+                        } else {
+                            result.error("ERROR", "Message is required", null)
+                        }
+                    } catch (e: Exception) {
+                        result.error("ERROR", "Failed to show toast", e.message)
                     }
                 }
                 else -> {
@@ -123,10 +137,21 @@ class MainActivity : FlutterActivity() {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             }
             startActivity(intent)
+            println("📱 Study Mode brought to foreground via intent")
         } catch (e: Exception) {
             // Fallback: try to bring to front using activity manager
             val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
             activityManager.moveTaskToFront(taskId, ActivityManager.MOVE_TASK_WITH_HOME)
+            println("📱 Study Mode brought to foreground via activity manager")
+        }
+    }
+
+    private fun showBlockingToast(message: String) {
+        try {
+            Toast.makeText(this, "🚫 $message", Toast.LENGTH_LONG).show()
+            println("📢 Toast shown: $message")
+        } catch (e: Exception) {
+            println("❌ Error showing toast: ${e.message}")
         }
     }
 }
