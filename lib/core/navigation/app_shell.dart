@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../providers/navigation_provider.dart';
-import '../../features/timer/timer_screen.dart';
+
 import '../../features/calendar/calendar_screen.dart';
 import '../../features/planner/planner_screen.dart';
 import '../../features/settings/settings_screen.dart';

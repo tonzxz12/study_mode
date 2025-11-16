@@ -213,12 +213,12 @@ class AppStyles {
   
   /// Border radius values (matching Tailwind CSS)
   static const double radius = 8.0; // Base radius (0.5rem)
-  static const double radiusSM = 4.0; // radius - 4px
-  static const double radiusMD = 6.0; // radius - 2px 
-  static const double radiusLG = 8.0; // base radius
-  static const double radiusXL = 12.0; // radius + 4px
-  static const double radiusXXL = 24.0;
-  static const double radiusRound = 100.0;
+  static const double radiusSM = 8.0; // Small radius
+  static const double radiusMD = 12.0; // Medium radius 
+  static const double radiusLG = 24.0; // Large radius (rounded-3xl)
+  static const double radiusXL = 32.0; // Extra large radius
+  static const double radiusXXL = 48.0; // Extra extra large
+  static const double radiusRound = 100.0; // Fully rounded
   
   /// Navigation bar dimensions
   static const double navBarHeight = 70.0;

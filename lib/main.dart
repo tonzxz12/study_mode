@@ -1,21 +1,80 @@
+import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'firebase_options.dart';
+import 'data/models/subject.dart';
+import 'data/models/study_session.dart';
+import 'data/models/app_settings.dart';
+import 'data/models/task.dart';
+import 'data/models/calendar_event.dart';
+import 'data/models/user.dart';
+import 'data/models/app_blocking_settings.dart';
+import 'data/adapters/duration_adapter.dart';
+import 'data/services/data_sync_service.dart';
+import 'data/services/app_blocking_settings_service.dart';
+import 'core/services/firestore_service.dart';
+import 'data/services/calendar_service.dart';
+
 import 'core/theme/styles.dart';
 import 'core/components/components.dart';
-import 'core/services/app_blocking_service.dart';
+import 'core/utils/responsive_utils.dart';
+import 'core/providers/theme_provider.dart';
+
 import 'features/calendar/calendar_screen.dart';
 import 'features/timer/timer_screen.dart';
 import 'features/planner/planner_screen.dart';
 import 'features/settings/settings_screen.dart';
+import 'features/auth/auth_wrapper.dart';
 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize app blocking service
-  await AppBlockingService.initialize();
+  // Initialize Hive for local data storage
+  await Hive.initFlutter();
+  
+  // Register Hive adapters
+  Hive.registerAdapter(SubjectAdapter());
+  Hive.registerAdapter(StudySessionAdapter());
+  Hive.registerAdapter(AppSettingsAdapter());
+  Hive.registerAdapter(TaskAdapter());
+  Hive.registerAdapter(CalendarEventAdapter());
+  Hive.registerAdapter(UserAdapter());
+  Hive.registerAdapter(AppBlockingSettingsAdapter());
+  Hive.registerAdapter(DurationAdapter());
+  
+  // Initialize Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
+  // Initialize DataSyncService for hybrid local/cloud storage
+  try {
+    await DataSyncService.initialize();
+    print('✅ DataSyncService initialized for student data collection');
+  } catch (e) {
+    print('⚠️ DataSyncService initialization failed: $e');
+  }
+  
+  // Initialize AppBlockingSettingsService
+  try {
+    await AppBlockingSettingsService.initialize();
+    print('✅ AppBlockingSettingsService initialized');
+  } catch (e) {
+    print('⚠️ AppBlockingSettingsService initialization failed: $e');
+  }
+  
+  // Initialize app blocking service safely
+  // Temporarily disabled to fix foreground service notification crash
+  // try {
+  //   await AppBlockingService.initialize();
+  // } catch (e) {
+  //   print('Error initializing app blocking service: $e');
+  // }
   
   runApp(
     const ProviderScope(
@@ -24,38 +83,190 @@ void main() async {
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeProvider);
+    
     return MaterialApp(
       title: 'SIGMA Study',
       theme: AppStyles.lightTheme,
       darkTheme: AppStyles.darkTheme,
-      themeMode: ThemeMode.system, // Follows system theme
-      home: const MainAppWithNavigation(),
+      themeMode: themeMode, // Uses theme provider
+      home: const AuthWrapper(),
+      routes: {
+        '/home': (context) => const MainAppWithNavigation(),
+      },
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
-class MainAppWithNavigation extends StatefulWidget {
+class MainAppWithNavigation extends ConsumerStatefulWidget {
   const MainAppWithNavigation({super.key});
 
   @override
-  State<MainAppWithNavigation> createState() => _MainAppWithNavigationState();
+  ConsumerState<MainAppWithNavigation> createState() => _MainAppWithNavigationState();
 }
 
-class _MainAppWithNavigationState extends State<MainAppWithNavigation> with WidgetsBindingObserver {
+class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> with WidgetsBindingObserver {
   int _selectedIndex = 0; // Start with Home
+  
+  // Real data variables
+  List<Subject> _subjects = [];
+  List<Task> _tasks = [];
+  List<CalendarEvent> _todayEvents = [];
+  List<StudySession> _todaySessions = [];
+  Duration _todayStudyTime = Duration.zero;
+  Duration _weeklyStudyTime = Duration.zero;
+  int _currentStreak = 0;
+  bool _isLoading = true;
+  AppBlockingSettings? _blockingSettings;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _loadRealData();
+    // Temporarily disabled app blocking background service
     // Ensure persistent monitoring when app starts
-    AppBlockingService.ensurePersistentMonitoring();
+    // AppBlockingService.ensurePersistentMonitoring();
+  }
+
+  Future<void> _loadRealData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+      
+      // Get current user ID
+      final currentUserId = FirestoreService.currentUserId;
+      if (currentUserId == null) {
+        throw Exception('User not authenticated');
+      }
+      
+      // Initialize services first
+      await DataSyncService.initialize();
+      await CalendarService.initialize();
+      
+      // Load subjects first
+      _subjects = await DataSyncService.getAllSubjects();
+      print('✅ Loaded ${_subjects.length} subjects');
+      
+      // Sync with Firestore if data seems limited
+      if (_subjects.length < 3) {
+        try {
+          await DataSyncService.forceSyncToFirestore();
+          _subjects = await DataSyncService.getAllSubjects();
+          print('🔄 Synced and reloaded ${_subjects.length} subjects from Firestore');
+        } catch (syncError) {
+          print('⚠️ Could not sync with Firestore: $syncError');
+        }
+      }
+      
+      // Load tasks  
+      _tasks = await DataSyncService.getAllTasks();
+      print('✅ Loaded ${_tasks.length} tasks');
+      
+      // Load today's calendar events with sync
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      
+      try {
+        await CalendarService.syncWithFirestore(currentUserId);
+        final allEvents = await CalendarService.getAllCalendarEvents(currentUserId);
+        _todayEvents = allEvents.where((event) {
+          final eventDate = DateTime(event.startTime.year, event.startTime.month, event.startTime.day);
+          return eventDate == today;
+        }).toList();
+        print('✅ Loaded ${_todayEvents.length} today events');
+      } catch (calendarError) {
+        print('⚠️ Error loading calendar events: $calendarError');
+        _todayEvents = [];
+      }
+      
+      // Load study sessions for today
+      try {
+        final allSessions = await DataSyncService.getAllStudySessions();
+        _todaySessions = allSessions.where((session) {
+          final sessionDate = DateTime(session.startTime.year, session.startTime.month, session.startTime.day);
+          return sessionDate == today && session.userId == currentUserId;
+        }).toList();
+        print('✅ Loaded ${_todaySessions.length} today sessions');
+        
+        // Calculate today's study time
+        _todayStudyTime = _todaySessions.fold(Duration.zero, (total, session) => total + session.actualDuration);
+        print('📊 Today study time: ${_todayStudyTime.inMinutes} minutes');
+        
+        // Calculate weekly study time
+        final weekStart = today.subtract(Duration(days: today.weekday - 1));
+        final weekEnd = weekStart.add(const Duration(days: 7));
+        final weeklySessions = allSessions.where((session) {
+          return session.startTime.isAfter(weekStart) && 
+                 session.startTime.isBefore(weekEnd) &&
+                 session.userId == currentUserId;
+        }).toList();
+        _weeklyStudyTime = weeklySessions.fold(Duration.zero, (total, session) => total + session.actualDuration);
+        print('📊 Weekly study time: ${_weeklyStudyTime.inMinutes} minutes');
+      } catch (sessionError) {
+        print('⚠️ Error loading study sessions: $sessionError');
+        _todaySessions = [];
+        _todayStudyTime = Duration.zero;
+        _weeklyStudyTime = Duration.zero;
+      }
+      
+      // Calculate current streak
+      _currentStreak = await _calculateStudyStreak();
+      print('🔥 Calculated streak: $_currentStreak days');
+      
+      // Load app blocking settings
+      try {
+        _blockingSettings = await AppBlockingSettingsService.getUserSettings(currentUserId);
+        print('✅ Loaded blocking settings: ${_blockingSettings?.isEnabled}');
+      } catch (blockingError) {
+        print('⚠️ Error loading blocking settings: $blockingError');
+        _blockingSettings = null;
+      }
+      
+      setState(() {
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('❌ Error loading real data: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<int> _calculateStudyStreak() async {
+    try {
+      final now = DateTime.now();
+      int streak = 0;
+      
+      for (int i = 0; i < 365; i++) { // Check up to 1 year back
+        final date = DateTime(now.year, now.month, now.day).subtract(Duration(days: i));
+        final allDaySessions = await DataSyncService.getAllStudySessions();
+        final sessions = allDaySessions.where((session) {
+          final sessionDate = DateTime(session.startTime.year, session.startTime.month, session.startTime.day);
+          return sessionDate == date;
+        }).toList();
+        
+        if (sessions.isNotEmpty && sessions.any((s) => s.actualDuration.inMinutes >= 25)) {
+          // At least 25 minutes of study (1 pomodoro)
+          streak++;
+        } else {
+          break;
+        }
+      }
+      
+      return streak;
+    } catch (e) {
+      print('Error calculating streak: $e');
+      return 0;
+    }
   }
 
   @override
@@ -68,6 +279,8 @@ class _MainAppWithNavigationState extends State<MainAppWithNavigation> with Widg
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     
+    // Temporarily disabled app blocking background service
+    /*
     switch (state) {
       case AppLifecycleState.resumed:
         // App came back to foreground - ensure monitoring continues
@@ -88,6 +301,7 @@ class _MainAppWithNavigationState extends State<MainAppWithNavigation> with Widg
         print('App hidden - Background monitoring continues');
         break;
     }
+    */
   }
 
   // Method to get current screen content
@@ -260,8 +474,18 @@ class _MainAppWithNavigationState extends State<MainAppWithNavigation> with Widg
                     const SizedBox(height: AppStyles.spaceMD),
                     
                     // Stats Row - Responsive
-                    LayoutBuilder(
+                    _isLoading ? const Center(
+                      child: CircularProgressIndicator(),
+                    ) : LayoutBuilder(
                       builder: (context, constraints) {
+                        final todayHours = _todayStudyTime.inHours;
+                        final todayMinutes = _todayStudyTime.inMinutes % 60;
+                        final todayTimeStr = todayHours > 0 ? '${todayHours}h ${todayMinutes}m' : '${todayMinutes}m';
+                        
+                        // Calculate weekly progress (simple calculation for now)
+                        final focusScore = _weeklyStudyTime.inMinutes > 0 ? 
+                          min(100, (_weeklyStudyTime.inMinutes * 100 / (7 * 60)).round()) : 0;
+                        
                         if (constraints.maxWidth > 600) {
                           // Wide screen: 4 cards in a row
                           return Row(
@@ -269,7 +493,7 @@ class _MainAppWithNavigationState extends State<MainAppWithNavigation> with Widg
                               Expanded(
                                 child: _buildStatCard(
                                   title: 'Study Time',
-                                  value: '2h 45m',
+                                  value: todayTimeStr.isEmpty ? '0m' : todayTimeStr,
                                   subtitle: 'Today',
                                   icon: Icons.timer_rounded,
                                   color: TimerStyles.focusColor,
@@ -279,7 +503,7 @@ class _MainAppWithNavigationState extends State<MainAppWithNavigation> with Widg
                               Expanded(
                                 child: _buildStatCard(
                                   title: 'Sessions',
-                                  value: '4',
+                                  value: '${_todaySessions.length}',
                                   subtitle: 'Completed',
                                   icon: Icons.check_circle_rounded,
                                   color: AppStyles.success,
@@ -289,7 +513,7 @@ class _MainAppWithNavigationState extends State<MainAppWithNavigation> with Widg
                               Expanded(
                                 child: _buildStatCard(
                                   title: 'Focus Score',
-                                  value: '87%',
+                                  value: '${focusScore}%',
                                   subtitle: 'This week',
                                   icon: Icons.psychology_rounded,
                                   color: PlannerStyles.subjectColor,
@@ -299,7 +523,7 @@ class _MainAppWithNavigationState extends State<MainAppWithNavigation> with Widg
                               Expanded(
                                 child: _buildStatCard(
                                   title: 'Streak',
-                                  value: '12',
+                                  value: '$_currentStreak',
                                   subtitle: 'Days',
                                   icon: Icons.local_fire_department_rounded,
                                   color: AppStyles.warning,
@@ -316,7 +540,7 @@ class _MainAppWithNavigationState extends State<MainAppWithNavigation> with Widg
                                   Expanded(
                                     child: _buildStatCard(
                                       title: 'Study Time',
-                                      value: '2h 45m',
+                                      value: todayTimeStr.isEmpty ? '0m' : todayTimeStr,
                                       subtitle: 'Today',
                                       icon: Icons.timer_rounded,
                                       color: TimerStyles.focusColor,
@@ -326,7 +550,7 @@ class _MainAppWithNavigationState extends State<MainAppWithNavigation> with Widg
                                   Expanded(
                                     child: _buildStatCard(
                                       title: 'Sessions',
-                                      value: '4',
+                                      value: '${_todaySessions.length}',
                                       subtitle: 'Completed',
                                       icon: Icons.check_circle_rounded,
                                       color: AppStyles.success,
@@ -340,7 +564,7 @@ class _MainAppWithNavigationState extends State<MainAppWithNavigation> with Widg
                                   Expanded(
                                     child: _buildStatCard(
                                       title: 'Focus Score',
-                                      value: '87%',
+                                      value: '${focusScore}%',
                                       subtitle: 'This week',
                                       icon: Icons.psychology_rounded,
                                       color: PlannerStyles.subjectColor,
@@ -350,7 +574,7 @@ class _MainAppWithNavigationState extends State<MainAppWithNavigation> with Widg
                                   Expanded(
                                     child: _buildStatCard(
                                       title: 'Streak',
-                                      value: '12',
+                                      value: '$_currentStreak',
                                       subtitle: 'Days',
                                       icon: Icons.local_fire_department_rounded,
                                       color: AppStyles.warning,
@@ -405,11 +629,7 @@ class _MainAppWithNavigationState extends State<MainAppWithNavigation> with Widg
                             ],
                           ),
                           const SizedBox(height: AppStyles.spaceMD),
-                          _buildProgressBar('Mathematics', 0.85, AppStyles.primary),
-                          const SizedBox(height: AppStyles.spaceSM),
-                          _buildProgressBar('Physics', 0.72, CalendarStyles.eventColor),
-                          const SizedBox(height: AppStyles.spaceSM),
-                          _buildProgressBar('Chemistry', 0.68, PlannerStyles.subjectColor),
+                          ..._buildSubjectProgressBars(),
                         ],
                       ),
                     ),
@@ -454,7 +674,7 @@ class _MainAppWithNavigationState extends State<MainAppWithNavigation> with Widg
                               ),
                               const Spacer(),
                               Text(
-                                'Oct 5',
+                                '${DateTime.now().day} ${_getMonthName(DateTime.now().month)}',
                                 style: AppStyles.bodySmall.copyWith(
                                   color: AppStyles.mutedForeground,
                                 ),
@@ -462,10 +682,7 @@ class _MainAppWithNavigationState extends State<MainAppWithNavigation> with Widg
                             ],
                           ),
                           const SizedBox(height: AppStyles.spaceMD),
-                          _buildScheduleItem('09:00', 'Mathematics', 'Calculus Review', AppStyles.primary),
-                          _buildScheduleItem('11:00', 'Physics', 'Quantum Mechanics', CalendarStyles.eventColor),
-                          _buildScheduleItem('14:00', 'Chemistry', 'Organic Chemistry Lab', PlannerStyles.subjectColor),
-                          _buildScheduleItem('16:00', 'Break', 'Free time', AppStyles.mutedForeground, isBreak: true),
+                          ..._buildTodaySchedule(),
                         ],
                       ),
                     ),
@@ -512,7 +729,7 @@ class _MainAppWithNavigationState extends State<MainAppWithNavigation> with Widg
                                 ),
                                 const SizedBox(height: AppStyles.spaceXS),
                                 Text(
-                                  'You\'re on track! Consider taking a 15-minute break between sessions for optimal focus.',
+                                  _getStudyTip(),
                                   style: AppStyles.bodySmall.copyWith(
                                     color: AppStyles.foreground,
                                     height: 1.4,
@@ -528,7 +745,11 @@ class _MainAppWithNavigationState extends State<MainAppWithNavigation> with Widg
                 ),
               ),
 
-              const SizedBox(height: AppStyles.spaceXXL * 2), // Extra space for navbar
+              SizedBox(height: context.responsive(
+                mobile: AppStyles.spaceXXL * 3, // Extra space for floating navbar
+                tablet: AppStyles.spaceXXL * 2,
+                desktop: AppStyles.spaceXL,
+              )),
             ],
           ),
         ),
@@ -647,6 +868,116 @@ class _MainAppWithNavigationState extends State<MainAppWithNavigation> with Widg
     );
   }
 
+  // Helper methods for real data display
+  List<Widget> _buildSubjectProgressBars() {
+    if (_subjects.isEmpty) {
+      return [
+        Text(
+          'No subjects found. Add subjects in the Planner to see progress.',
+          style: AppStyles.bodySmall.copyWith(
+            color: AppStyles.mutedForeground,
+          ),
+        ),
+      ];
+    }
+    
+    List<Widget> bars = [];
+    for (int i = 0; i < _subjects.take(3).length; i++) {
+      final subject = _subjects[i];
+      
+      // Calculate progress based on completed vs total sessions for this subject
+      final subjectSessions = _todaySessions.where((s) => s.subjectId == subject.id).toList();
+      final progress = subjectSessions.isEmpty ? 0.0 : 
+        subjectSessions.where((s) => s.actualDuration >= s.targetDuration).length / subjectSessions.length;
+      
+      final color = Color(int.parse(subject.color.replaceFirst('#', '0xff')));
+      
+      bars.add(_buildProgressBar(subject.name, progress, color));
+      if (i < _subjects.take(3).length - 1) {
+        bars.add(const SizedBox(height: AppStyles.spaceSM));
+      }
+    }
+    return bars;
+  }
+  
+  List<Widget> _buildTodaySchedule() {
+    if (_todayEvents.isEmpty) {
+      return [
+        Text(
+          'No events scheduled for today. Add events in the Calendar.',
+          style: AppStyles.bodySmall.copyWith(
+            color: AppStyles.mutedForeground,
+          ),
+        ),
+      ];
+    }
+    
+    List<Widget> scheduleItems = [];
+    final sortedEvents = _todayEvents.toList()..sort((a, b) => a.startTime.compareTo(b.startTime));
+    
+    for (final event in sortedEvents.take(4)) {
+      // Find subject by ID, or create a default one if not found
+      Subject? subject;
+      try {
+        subject = _subjects.firstWhere((s) => s.id == event.subjectId);
+      } catch (e) {
+        // If subject not found, create a default subject
+        subject = Subject(
+          id: event.subjectId ?? 'general',
+          name: event.subjectId != null && event.subjectId!.isNotEmpty ? 
+                'Subject ${event.subjectId}' : 'General Study',
+          userId: FirestoreService.currentUserId ?? 'unknown',
+          color: '#6366F1',
+          createdAt: DateTime.now(),
+        );
+        print('⚠️ Subject not found for event ${event.title}, using default: ${subject.name}');
+      }
+      
+      final time = '${event.startTime.hour.toString().padLeft(2, '0')}:${event.startTime.minute.toString().padLeft(2, '0')}';
+      final color = Color(int.parse(subject.color.replaceFirst('#', '0xff')));
+      
+      scheduleItems.add(
+        _buildScheduleItem(
+          time,
+          subject.name,
+          event.title,
+          color,
+        ),
+      );
+    }
+    
+    return scheduleItems;
+  }
+  
+  String _getStudyTip() {
+    if (_blockingSettings?.isEnabled == true) {
+      final blockedCount = _blockingSettings?.blockedApps.length ?? 0;
+      return 'App blocking is active with $blockedCount apps blocked. Stay focused!';
+    }
+    
+    if (_currentStreak > 7) {
+      return 'Amazing! You\'re on a $_currentStreak-day streak. Keep the momentum going!';
+    }
+    
+    if (_todayStudyTime.inMinutes < 25) {
+      return 'Start with a 25-minute focus session to build momentum for the day.';
+    }
+    
+    if (_todaySessions.length >= 4) {
+      return 'Great progress! Consider taking a longer break to recharge.';
+    }
+    
+    return 'You\'re on track! Consider taking a 15-minute break between sessions for optimal focus.';
+  }
+
+  String _getMonthName(int month) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return months[month - 1];
+  }
+
   // Schedule Item Helper - Shadcn Style
   Widget _buildScheduleItem(String time, String subject, String topic, Color color, {bool isBreak = false}) {
     return Padding(
@@ -719,12 +1050,24 @@ class _MainAppWithNavigationState extends State<MainAppWithNavigation> with Widg
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
-      body: _getCurrentScreen(),
-      bottomNavigationBar: Container(
-        margin: const EdgeInsets.only(
-          bottom: AppStyles.navBarMargin, 
-          left: AppStyles.navBarMargin, 
-          right: AppStyles.navBarMargin
+      body: _buildResponsiveBody(context),
+      bottomNavigationBar: context.isMobile ? Container(
+        margin: EdgeInsets.only(
+          bottom: context.responsive(
+            mobile: AppStyles.navBarMargin,
+            tablet: AppStyles.navBarMargin + 8,
+            desktop: AppStyles.navBarMargin + 16,
+          ), 
+          left: context.responsive(
+            mobile: AppStyles.navBarMargin,
+            tablet: AppStyles.navBarMargin + 4,
+            desktop: AppStyles.navBarMargin + 8,
+          ), 
+          right: context.responsive(
+            mobile: AppStyles.navBarMargin,
+            tablet: AppStyles.navBarMargin + 4,
+            desktop: AppStyles.navBarMargin + 8,
+          ),
         ),
         child: StraightTransparentNavBar(
           selectedIndex: _selectedIndex,
@@ -734,6 +1077,212 @@ class _MainAppWithNavigationState extends State<MainAppWithNavigation> with Widg
             });
           },
           onCenterPressed: _onCenterFabPressed,
+        ),
+      ) : null,
+    );
+  }
+
+  Widget _buildResponsiveBody(BuildContext context) {
+    // For desktop/tablet, use a different layout
+    if (context.isDesktop || context.isTablet) {
+      return Row(
+        children: [
+          // Navigation sidebar for larger screens
+          Container(
+            width: context.responsive(mobile: 200, tablet: 250, desktop: 280),
+            decoration: BoxDecoration(
+              color: AppStyles.card,
+              border: Border(
+                right: BorderSide(
+                  color: AppStyles.border.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+            ),
+            child: _buildNavigationSidebar(context),
+          ),
+          // Main content
+          Expanded(
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: context.responsive(
+                  mobile: double.infinity,
+                  tablet: 800,
+                  desktop: 1200,
+                ),
+              ),
+              child: _getCurrentScreen(),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Mobile layout - just return the current screen
+    return _getCurrentScreen();
+  }
+
+  Widget _buildNavigationSidebar(BuildContext context) {
+    return Column(
+      children: [
+        // Header
+        Container(
+          padding: context.responsivePadding,
+          child: Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(context.spacing(8)),
+                decoration: BoxDecoration(
+                  color: AppStyles.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Image.asset(
+                  'assets/images/sigma.png',
+                  width: context.responsive(mobile: 28, tablet: 32, desktop: 36),
+                  height: context.responsive(mobile: 28, tablet: 32, desktop: 36),
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Icon(
+                      Icons.psychology_rounded,
+                      size: context.responsive(mobile: 24, tablet: 28, desktop: 32),
+                      color: AppStyles.primary,
+                    );
+                  },
+                ),
+              ),
+              SizedBox(width: context.spacing(12)),
+              Text(
+                'SIGMA',
+                style: context.scaleTextStyle(
+                  AppStyles.sectionHeader.copyWith(
+                    color: AppStyles.primary,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // Navigation items
+        Expanded(
+          child: ListView(
+            padding: context.responsiveHorizontalPadding,
+            children: [
+              _buildSidebarItem(
+                context,
+                icon: Icons.home_rounded,
+                label: 'Home',
+                isSelected: _selectedIndex == 0,
+                onTap: () => setState(() => _selectedIndex = 0),
+              ),
+              SizedBox(height: context.spacing(8)),
+              _buildSidebarItem(
+                context,
+                icon: Icons.calendar_month_rounded,
+                label: 'Calendar',
+                isSelected: _selectedIndex == 1,
+                onTap: () => setState(() => _selectedIndex = 1),
+              ),
+              SizedBox(height: context.spacing(8)),
+              _buildSidebarItem(
+                context,
+                icon: Icons.assignment_rounded,
+                label: 'Planner',
+                isSelected: _selectedIndex == 2,
+                onTap: () => setState(() => _selectedIndex = 2),
+              ),
+              SizedBox(height: context.spacing(8)),
+              _buildSidebarItem(
+                context,
+                icon: Icons.settings_rounded,
+                label: 'Settings',
+                isSelected: _selectedIndex == 3,
+                onTap: () => setState(() => _selectedIndex = 3),
+              ),
+            ],
+          ),
+        ),
+        
+        // Timer button at bottom
+        Container(
+          padding: context.responsivePadding,
+          child: ElevatedButton(
+            onPressed: _onCenterFabPressed,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppStyles.primary,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(
+                horizontal: context.spacing(20),
+                vertical: context.spacing(16),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.timer_rounded,
+                  size: context.responsive(mobile: 18, tablet: 20, desktop: 24),
+                ),
+                SizedBox(width: context.spacing(8)),
+                Text(
+                  'Start Timer',
+                  style: context.scaleTextStyle(
+                    AppStyles.buttonText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSidebarItem(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: context.spacing(16),
+          vertical: context.spacing(12),
+        ),
+        decoration: BoxDecoration(
+          color: isSelected ? AppStyles.primary.withOpacity(0.1) : null,
+          borderRadius: BorderRadius.circular(12),
+          border: isSelected ? Border.all(
+            color: AppStyles.primary.withOpacity(0.3),
+            width: 1,
+          ) : null,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: context.responsive(mobile: 18, tablet: 20, desktop: 24),
+              color: isSelected ? AppStyles.primary : AppStyles.mutedForeground,
+            ),
+            SizedBox(width: context.spacing(12)),
+            Text(
+              label,
+              style: context.scaleTextStyle(
+                AppStyles.bodyMedium.copyWith(
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected ? AppStyles.primary : AppStyles.foreground,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

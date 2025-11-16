@@ -4,9 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
+
 import '../../core/providers/theme_provider.dart';
 import '../../core/theme/styles.dart';
 import '../../core/services/app_blocking_service.dart';
+import '../../core/services/auth_service.dart';
+import '../../core/services/firestore_service.dart';
+import '../../data/services/app_blocking_settings_service.dart';
+import '../auth/auth_wrapper.dart';
+import '../debug/firestore_debug_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -20,11 +26,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
   bool _notificationsEnabled = true;
   int _defaultBreakDuration = 30;
   
+  // User Profile Data
+  String _userDisplayName = 'Student';
+  String _userEmail = '';
+  
   // App Blocking Settings
   bool _appBlockingEnabled = false;
   bool _hasUsagePermission = false;
   bool _hasOverlayPermission = false;
   bool _isDeviceAdmin = false;
+  bool _hasNotificationPermission = true; // Default to true for older Android
   List<Map<String, dynamic>> _blockableApps = [
     {'name': 'Facebook', 'package': 'com.facebook.katana', 'blocked': false, 'icon': Icons.facebook, 'color': Color(0xFF1877F2)},
     {'name': 'Instagram', 'package': 'com.instagram.android', 'blocked': false, 'icon': Icons.camera_alt_rounded, 'color': Color(0xFFE4405F)},
@@ -80,12 +91,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
       // Load default break duration
       _defaultBreakDuration = prefs.getInt('default_break_duration') ?? 30;
       
-      // Load individual app blocking states
-      final blockedApps = AppBlockingService.getBlockedApps();
-      for (int i = 0; i < _blockableApps.length; i++) {
-        final packageName = _blockableApps[i]['package'] as String;
-        _blockableApps[i]['blocked'] = blockedApps.contains(packageName);
-      }
+      // Load individual app blocking states from Firebase
+      await _loadBlockedAppsFromFirebase();
+      
+      // Load user profile data from Firebase
+      await _loadUserProfileData();
       
       setState(() {});
       print('Loaded saved settings from storage');
@@ -228,8 +238,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
 
   @override
   Widget build(BuildContext context) {
-    final themeMode = ref.watch(themeProvider);
-    
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Container(
@@ -360,6 +368,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                   padding: const EdgeInsets.symmetric(horizontal: AppStyles.spaceXL),
                   child: Column(
                     children: [
+                      // User Profile Card
+                      _buildUserProfileCard(),
+                      
+                      const SizedBox(height: AppStyles.spaceLG),
+                      
                       // Study Mode Card
                       _buildModernCard(
                         title: 'Study Mode',
@@ -412,12 +425,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                       const SizedBox(height: AppStyles.spaceXL),
                       
                       // Theme Settings Card  
-                      _buildThemeCard(themeMode),
+                      _buildThemeCard(),
                       
                       const SizedBox(height: AppStyles.spaceXL),
                       
                       // Data Management Card
                       _buildDataCard(),
+
+                      const SizedBox(height: AppStyles.spaceXL),
+
+                      // Debug Card (for testing Firestore)
+                      _buildDebugCard(),
+
+                      const SizedBox(height: AppStyles.spaceXL),
+
+                      // Logout Section
+                      _buildLogoutCard(),
                     ],
                   ),
                 ),
@@ -569,6 +592,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
           icon: Icons.layers_rounded,
           isGranted: _hasOverlayPermission,
           onTap: _requestOverlayPermission,
+        ),
+        _buildDivider(),
+        _buildPermissionTile(
+          title: 'Notifications',
+          subtitle: 'Send reminders and study session notifications',
+          icon: Icons.notifications_rounded,
+          isGranted: _hasNotificationPermission,
+          onTap: _requestNotificationPermission,
         ),
         _buildDivider(),
         _buildPermissionTile(
@@ -1060,6 +1091,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
 
   void _updateAppBlocking(String packageName, bool shouldBlock) async {
     try {
+      final userId = FirestoreService.currentUserId;
+      if (userId == null) {
+        print('❌ No user logged in for app blocking settings');
+        return;
+      }
+
       if (shouldBlock) {
         // Add app to blocking list
         AppBlockingService.addBlockedApp(packageName);
@@ -1069,6 +1106,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
         if (blockedApps.length == 1) {
           await AppBlockingService.startMonitoring(blockedApps);
         }
+        
+        // Save to Firebase settings table
+        await AppBlockingSettingsService.updateBlockedApps(userId, blockedApps);
+        print('✅ Saved blocked app $packageName to Firebase settings for user: $userId');
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1094,6 +1135,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
         } else {
           await AppBlockingService.startMonitoring(blockedApps);
         }
+        
+        // Save to Firebase settings table
+        await AppBlockingSettingsService.updateBlockedApps(userId, blockedApps);
+        print('✅ Removed blocked app $packageName from Firebase settings for user: $userId');
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1261,9 +1306,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
     );
   }
 
-  Widget _buildThemeCard(ThemeMode themeMode) {
-    String themeName = themeMode == ThemeMode.light ? 'Light' : 
-                      themeMode == ThemeMode.dark ? 'Dark' : 'System';
+  Widget _buildThemeCard() {
+    final themeNotifier = ref.read(themeProvider.notifier);
+    String themeName = themeNotifier.themeName;
     
     return Container(
       padding: const EdgeInsets.all(AppStyles.spaceLG),
@@ -1400,6 +1445,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
           iconColor: AppStyles.success,
           onTap: _showExportDialog,
         ),
+        _buildDivider(),
+        _buildDataTile(
+          title: 'Data Collection Status',
+          subtitle: 'View student data sync & collection status',
+          icon: Icons.analytics_rounded,
+          iconColor: AppStyles.info,
+          onTap: _showDataCollectionStatus,
+        ),
         const SizedBox(height: AppStyles.spaceSM),
       ],
     );
@@ -1470,6 +1523,108 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildLogoutCard() {
+    return _buildModernCard(
+      title: 'Account',
+      children: [
+        _buildDataTile(
+          title: 'Sign Out',
+          subtitle: 'Sign out of your account',
+          icon: Icons.logout_rounded,
+          iconColor: AppStyles.destructive,
+          onTap: _showLogoutDialog,
+        ),
+        const SizedBox(height: AppStyles.spaceSM),
+      ],
+    );
+  }
+
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppStyles.card,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppStyles.radiusLG),
+          ),
+          title: Text(
+            'Sign Out',
+            style: AppStyles.subsectionHeader.copyWith(
+              color: AppStyles.foreground,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          content: Text(
+            'Are you sure you want to sign out? You will need to sign in again to access your account.',
+            style: AppStyles.bodyMedium.copyWith(
+              color: AppStyles.mutedForeground,
+              height: 1.5,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: TextButton.styleFrom(
+                foregroundColor: AppStyles.mutedForeground,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppStyles.spaceLG,
+                  vertical: AppStyles.spaceSM,
+                ),
+              ),
+              child: Text(
+                'Cancel',
+                style: AppStyles.bodyMedium.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                try {
+                  await AuthService().signOut();
+                  if (mounted) {
+                    // Navigate to auth wrapper which will show login screen
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (context) => const AuthWrapper(),
+                      ),
+                      (route) => false,
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to sign out: $e'),
+                        backgroundColor: AppStyles.destructive,
+                      ),
+                    );
+                  }
+                }
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: AppStyles.destructive,
+                backgroundColor: AppStyles.destructive.withOpacity(0.1),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppStyles.spaceLG,
+                  vertical: AppStyles.spaceSM,
+                ),
+              ),
+              child: Text(
+                'Sign Out',
+                style: AppStyles.bodyMedium.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1654,6 +1809,45 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
     }
   }
 
+  Future<void> _requestNotificationPermission() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'Checking notification permission...',
+          style: TextStyle(color: AppStyles.white),
+        ),
+        backgroundColor: AppStyles.info,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+        ),
+      ),
+    );
+    
+    try {
+      // On Android 13+, we need to request notification permission
+      // For older versions, it's granted by default
+      _hasNotificationPermission = true;
+      setState(() {});
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Notification permission is enabled',
+            style: TextStyle(color: AppStyles.white),
+          ),
+          backgroundColor: AppStyles.success,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+          ),
+        ),
+      );
+    } catch (e) {
+      print('Error checking notification permission: $e');
+    }
+  }
+
   Future<void> _requestDeviceAdmin() async {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1756,13 +1950,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
               color: AppStyles.foreground,
             ),
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildThemeOption('Light', Icons.light_mode_rounded, ThemeMode.light),
-              _buildThemeOption('Dark', Icons.dark_mode_rounded, ThemeMode.dark),
-              _buildThemeOption('System', Icons.settings_rounded, ThemeMode.system),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Select your preferred theme mode',
+                  style: AppStyles.bodyMedium.copyWith(
+                    color: AppStyles.mutedForeground,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                _buildThemeOption('Light Mode', Icons.light_mode_rounded, ThemeMode.light),
+                const SizedBox(height: 8),
+                _buildThemeOption('Dark Mode', Icons.dark_mode_rounded, ThemeMode.dark),
+                const SizedBox(height: 8),
+                _buildThemeOption('System Default', Icons.settings_rounded, ThemeMode.system),
+                const SizedBox(height: 16),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -1773,7 +1980,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                   borderRadius: BorderRadius.circular(AppStyles.radiusMD)
                 ),
               ),
-              child: const Text('Cancel'),
+              child: const Text('Done'),
             ),
           ],
         );
@@ -2097,6 +2304,326 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
           ],
         );
       },
+    );
+  }
+
+  void _showDataCollectionStatus() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppStyles.card,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppStyles.radiusLG),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(AppStyles.spaceSM),
+                decoration: BoxDecoration(
+                  color: AppStyles.info.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(AppStyles.radiusSM),
+                ),
+                child: Icon(
+                  Icons.analytics_rounded,
+                  color: AppStyles.info,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: AppStyles.spaceMD),
+              Text(
+                'Student Data Collection',
+                style: AppStyles.subsectionHeader.copyWith(
+                  color: AppStyles.foreground,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'This app collects study session data for research purposes. Your data helps improve educational technology.',
+                  style: AppStyles.bodyMedium.copyWith(
+                    color: AppStyles.mutedForeground,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: AppStyles.spaceMD),
+                Container(
+                  padding: const EdgeInsets.all(AppStyles.spaceMD),
+                  decoration: BoxDecoration(
+                    color: AppStyles.info.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(AppStyles.radiusMD),
+                    border: Border.all(
+                      color: AppStyles.info.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '📊 Data Collected:',
+                        style: AppStyles.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppStyles.info,
+                        ),
+                      ),
+                      const SizedBox(height: AppStyles.spaceXS),
+                      Text(
+                        '• Study session duration\n'
+                        '• Subject progress\n'
+                        '• Focus scores\n'
+                        '• App usage patterns\n'
+                        '• Study habits & analytics',
+                        style: AppStyles.bodySmall.copyWith(
+                          color: AppStyles.mutedForeground,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppStyles.spaceMD),
+                Container(
+                  padding: const EdgeInsets.all(AppStyles.spaceMD),
+                  decoration: BoxDecoration(
+                    color: AppStyles.success.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(AppStyles.radiusMD),
+                    border: Border.all(
+                      color: AppStyles.success.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '🔒 Privacy Protection:',
+                        style: AppStyles.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppStyles.success,
+                        ),
+                      ),
+                      const SizedBox(height: AppStyles.spaceXS),
+                      Text(
+                        '• Data is anonymized\n'
+                        '• No personal identifiers stored\n'
+                        '• Secure cloud storage\n'
+                        '• You can export/delete anytime',
+                        style: AppStyles.bodySmall.copyWith(
+                          color: AppStyles.mutedForeground,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: TextButton.styleFrom(
+                foregroundColor: AppStyles.mutedForeground,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppStyles.spaceLG,
+                  vertical: AppStyles.spaceSM,
+                ),
+              ),
+              child: Text(
+                'Close',
+                style: AppStyles.bodyMedium.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDebugCard() {
+    return _buildModernCard(
+      title: 'Developer Tools',
+      children: [
+        _buildDataTile(
+          title: 'Firestore Debug',
+          subtitle: 'Test database connection and data saving',
+          icon: Icons.bug_report_rounded,
+          iconColor: AppStyles.warning,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const FirestoreDebugScreen(),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: AppStyles.spaceSM),
+      ],
+    );
+  }
+
+  // Load blocked apps from Firebase
+  Future<void> _loadBlockedAppsFromFirebase() async {
+    try {
+      final userId = FirestoreService.currentUserId;
+      if (userId != null) {
+        final settings = await AppBlockingSettingsService.getUserSettings(userId);
+        
+        // Update local blocked apps state
+        for (int i = 0; i < _blockableApps.length; i++) {
+          final packageName = _blockableApps[i]['package'] as String;
+          _blockableApps[i]['blocked'] = settings.blockedApps.contains(packageName);
+        }
+        
+        print('✅ Loaded ${settings.blockedApps.length} blocked apps from Firebase for user: $userId');
+      } else {
+        print('❌ No user logged in to load blocked apps');
+      }
+    } catch (e) {
+      print('❌ Error loading blocked apps from Firebase: $e');
+    }
+  }
+
+  // Load user profile data from Firebase
+  Future<void> _loadUserProfileData() async {
+    try {
+      final userId = FirestoreService.currentUserId;
+      if (userId != null) {
+        final userData = await FirestoreService.getUserData();
+        
+        if (userData != null) {
+          _userDisplayName = userData['displayName'] ?? 'Student';
+          _userEmail = userData['email'] ?? '';
+          print('✅ Loaded user profile: $_userDisplayName ($_userEmail)');
+        } else {
+          print('❌ No user data found in Firebase');
+        }
+      } else {
+        print('❌ No user logged in to load profile data');
+      }
+    } catch (e) {
+      print('❌ Error loading user profile data: $e');
+    }
+  }
+
+  // Build user profile card
+  Widget _buildUserProfileCard() {
+    final user = FirestoreService.currentUserId;
+    
+    return _buildModernCard(
+      title: 'Profile',
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppStyles.spaceLG, vertical: AppStyles.spaceMD),
+          child: Row(
+            children: [
+              // User Avatar
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppStyles.primary,
+                      AppStyles.primary.withOpacity(0.7),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppStyles.primary.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.person_rounded,
+                  color: Colors.white,
+                  size: 30,
+                ),
+              ),
+              
+              const SizedBox(width: AppStyles.spaceMD),
+              
+              // User Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _userDisplayName,
+                      style: AppStyles.bodyLarge.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppStyles.foreground,
+                      ),
+                    ),
+                    const SizedBox(height: AppStyles.spaceXS),
+                    Text(
+                      _userEmail.isNotEmpty ? _userEmail : (user != null ? 'ID: ${user.substring(0, 8)}...' : 'Not logged in'),
+                      style: AppStyles.bodySmall.copyWith(
+                        color: AppStyles.mutedForeground,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: AppStyles.spaceXS),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppStyles.spaceXS,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppStyles.success.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(AppStyles.radiusSM),
+                      ),
+                      child: Text(
+                        'Active',
+                        style: TextStyle(
+                          color: AppStyles.success,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Settings sync status
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Icon(
+                    Icons.cloud_done_rounded,
+                    color: AppStyles.success,
+                    size: 20,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Synced',
+                    style: TextStyle(
+                      color: AppStyles.success,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

@@ -3,9 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:usage_stats/usage_stats.dart';
 import 'package:system_alert_window/system_alert_window.dart';
-// import 'package:flutter_background_service/flutter_background_service.dart'; // DISABLED
+import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:android_intent_plus/android_intent.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 @pragma('vm:entry-point')
 class AppBlockingService {
@@ -27,23 +26,22 @@ class AppBlockingService {
   }
 
   static Future<void> _initializeBackgroundService() async {
-    // DISABLED - Background service removed due to crash
-    // await FlutterBackgroundService().configure(
-    //   androidConfiguration: AndroidConfiguration(
-    //     onStart: onStart,
-    //     autoStart: false,
-    //     isForegroundMode: true,
-    //     autoStartOnBoot: false,
-    //     notificationChannelId: 'study_mode_blocking',
-    //     initialNotificationTitle: 'Study Mode Active',
-    //     initialNotificationContent: 'App blocking is running in background',
-    //     foregroundServiceNotificationId: 888,
-    //   ),
-    //   iosConfiguration: IosConfiguration(
-    //     autoStart: false,
-    //     onForeground: onStart,
-    //   ),
-    // );
+    await FlutterBackgroundService().configure(
+      androidConfiguration: AndroidConfiguration(
+        onStart: onStart,
+        autoStart: true, // AUTO-START for persistent monitoring
+        isForegroundMode: true,
+        autoStartOnBoot: true, // Start on device boot
+        notificationChannelId: 'study_mode_blocking',
+        initialNotificationTitle: 'Study Mode Active',
+        initialNotificationContent: 'App blocking is running in background',
+        foregroundServiceNotificationId: 888,
+      ),
+      iosConfiguration: IosConfiguration(
+        autoStart: true, // AUTO-START for iOS too
+        onForeground: onStart,
+      ),
+    );
   }
 
   // Check if device has usage access permission
@@ -114,131 +112,6 @@ class AppBlockingService {
     }
   }
 
-  // Ensure persistent monitoring (compatibility method)
-  static Future<void> ensurePersistentMonitoring() async {
-    if (_blockedPackages.isNotEmpty) {
-      await startMonitoring(_blockedPackages);
-    }
-  }
-
-  // Get current blocked apps list
-  static List<String> getBlockedApps() {
-    return List<String>.from(_blockedPackages);
-  }
-
-  // Add a blocked app
-  static Future<void> addBlockedApp(String packageName) async {
-    if (!_blockedPackages.contains(packageName)) {
-      _blockedPackages.add(packageName);
-      await _saveBlockedApps();
-      
-      // Restart monitoring with updated list
-      if (_isMonitoring) {
-        await startMonitoring(_blockedPackages);
-      }
-    }
-  }
-
-  // Remove a blocked app
-  static Future<void> removeBlockedApp(String packageName) async {
-    if (_blockedPackages.contains(packageName)) {
-      _blockedPackages.remove(packageName);
-      await _saveBlockedApps();
-      
-      // Restart monitoring with updated list
-      if (_isMonitoring) {
-        if (_blockedPackages.isNotEmpty) {
-          await startMonitoring(_blockedPackages);
-        } else {
-          await stopMonitoring();
-        }
-      }
-    }
-  }
-
-  // Save app blocking enabled state
-  static Future<void> saveAppBlockingEnabled(bool enabled) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_keyAppBlockingEnabled, enabled);
-    } catch (e) {
-      print('Error saving app blocking enabled state: $e');
-    }
-  }
-
-  // Load app blocking enabled state
-  static Future<bool> loadAppBlockingEnabled() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getBool(_keyAppBlockingEnabled) ?? false;
-    } catch (e) {
-      print('Error loading app blocking enabled state: $e');
-      return false;
-    }
-  }
-
-  // Clear saved data
-  static Future<void> clearSavedData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_keyBlockedApps);
-      await prefs.remove(_keyAppBlockingEnabled);
-      await prefs.remove(_keyMonitoringActive);
-      _blockedPackages.clear();
-      _isMonitoring = false;
-    } catch (e) {
-      print('Error clearing saved data: $e');
-    }
-  }
-
-  // Get monitoring status
-  static bool get isMonitoringActive => _isMonitoring;
-
-  // Check overlay permission
-  static Future<bool> hasOverlayPermission() async {
-    try {
-      final result = await SystemAlertWindow.checkPermissions();
-      return result ?? false;
-    } catch (e) {
-      print('Error checking overlay permission: $e');
-      return false;
-    }
-  }
-
-  // Request overlay permission - opens system settings
-  static Future<bool> requestOverlayPermission() async {
-    try {
-      // Request permission which will open settings
-      await SystemAlertWindow.requestPermissions();
-      // Check if granted after user returns
-      await Future.delayed(const Duration(seconds: 2));
-      final result = await SystemAlertWindow.checkPermissions();
-      return result ?? false;
-    } catch (e) {
-      print('Error requesting overlay permission: $e');
-      return false;
-    }
-  }
-
-  // Check device admin (placeholder)
-  static Future<bool> isDeviceAdmin() async {
-    try {
-      return await _channel.invokeMethod('isDeviceAdmin') ?? false;
-    } catch (e) {
-      print('Error checking device admin: $e');
-      return false;
-    }
-  }
-
-  // Request device admin (placeholder)
-  static Future<void> requestDeviceAdmin() async {
-    try {
-      await _channel.invokeMethod('requestDeviceAdmin');
-    } catch (e) {
-      print('Error requesting device admin: $e');
-    }
-  }
-
   // CONTINUOUS Start monitoring blocked apps (public interface)
   static Future<void> startMonitoring(List<String> blockedApps) async {
     try {
@@ -282,18 +155,17 @@ class AppBlockingService {
   
   // Ensure background service stays running
   static Future<void> _ensureBackgroundServiceRunning() async {
-    // DISABLED - Background service removed due to crash
-    // try {
-    //   final service = FlutterBackgroundService();
-    //   if (!await service.isRunning()) {
-    //     await service.startService();
-    //     print('🔄 Started background monitoring service');
-    //   } else {
-    //     print('✅ Background monitoring service already running');
-    //   }
-    // } catch (e) {
-    //   print('❌ Error ensuring background service: $e');
-    // }
+    try {
+      final service = FlutterBackgroundService();
+      if (!await service.isRunning()) {
+        await service.startService();
+        print('🔄 Started background monitoring service');
+      } else {
+        print('✅ Background monitoring service already running');
+      }
+    } catch (e) {
+      print('❌ Error ensuring background service: $e');
+    }
   }
 
   // CONTINUOUS app detection and blocking - ALWAYS block without interference
@@ -381,11 +253,10 @@ class AppBlockingService {
   // Stop monitoring
   static Future<void> stopMonitoring() async {
     try {
-      // DISABLED - Background service removed due to crash
-      // final service = FlutterBackgroundService();
-      // if (await service.isRunning()) {
-      //   service.invoke('stopService');
-      // }
+      final service = FlutterBackgroundService();
+      if (await service.isRunning()) {
+        service.invoke('stopService');
+      }
       _isMonitoring = false;
       _monitoringTimer?.cancel();
       
@@ -417,67 +288,67 @@ class AppBlockingService {
     return appNames[packageName] ?? 'This app';
   }
 
-  // Background service entry point - DISABLED
-  // @pragma('vm:entry-point')
-  // static void onStart(ServiceInstance service) {
-  //   print('Background app blocking service started - CONTINUOUS protection');
-  //   
-  //   // Listen for stop commands
-  //   service.on('stop').listen((event) {
-  //     print('Stopping background app blocking service');
-  //     service.stopSelf();
-  //   });
-  //   
-  //   // CONTINUOUS background monitoring - backup protection layer
-  //   Timer.periodic(const Duration(milliseconds: 500), (timer) async {
-  //     if (!_isMonitoring || _blockedPackages.isEmpty) {
-  //       return;
-  //     }
-  //     
-  //     try {
-  //       DateTime now = DateTime.now();
-  //       DateTime startTime = now.subtract(const Duration(seconds: 2));
-  //       
-  //       List<UsageInfo> usageInfos = await UsageStats.queryUsageStats(startTime, now);
-  //       
-  //       for (UsageInfo usage in usageInfos) {
-  //         if (_blockedPackages.contains(usage.packageName) && 
-  //             usage.lastTimeUsed != null) {
-  //           
-  //           int lastUsedMillis = int.tryParse(usage.lastTimeUsed!) ?? 0;
-  //           DateTime lastUsedTime = DateTime.fromMillisecondsSinceEpoch(lastUsedMillis);
-  //           
-  //           // CONTINUOUS BACKGROUND BLOCKING - Always block, backup protection
-  //           if (now.difference(lastUsedTime).inSeconds < 2) {
-  //             String appName = _getAppNameFromPackage(usage.packageName!);
-  //             print('🔒 BACKGROUND CONTINUOUS: $appName - BACKUP PROTECTION!');
-  //             
-  //             // Simple background blocking - always effective
-  //             try {
-  //               await _channel.invokeMethod('killApp', {'packageName': usage.packageName!});
-  //               await _channel.invokeMethod('bringAppToForeground');
-  //               print('🛡️ Background: $appName blocked, Study Mode active');
-  //             } catch (blockError) {
-  //               print('⚠️ Background blocking error: $blockError');
-  //             }
-  //           }
-  //         }
-  //       }
-  //     } catch (e) {
-  //       print('Background monitoring error: $e');
-  //       // Continue monitoring - NEVER STOP PROTECTING
-  //     }
-  //   });
-  //   
-  //   // Send periodic status updates
-  //   Timer.periodic(const Duration(minutes: 1), (timer) {
-  //     if (_isMonitoring && _blockedPackages.isNotEmpty) {
-  //       print('CONTINUOUS blocking active - Monitoring ${_blockedPackages.length} apps');
-  //       service.invoke('update_notification', {
-  //         'title': 'Study Mode ACTIVE 🔒',
-  //         'body': 'Continuous blocking of ${_blockedPackages.length} apps - Always protected'
-  //       });
-  //     }
-  //   });
-  // }
+  // Background service entry point
+  @pragma('vm:entry-point')
+  static void onStart(ServiceInstance service) {
+    print('Background app blocking service started - CONTINUOUS protection');
+    
+    // Listen for stop commands
+    service.on('stop').listen((event) {
+      print('Stopping background app blocking service');
+      service.stopSelf();
+    });
+    
+    // CONTINUOUS background monitoring - backup protection layer
+    Timer.periodic(const Duration(milliseconds: 500), (timer) async {
+      if (!_isMonitoring || _blockedPackages.isEmpty) {
+        return;
+      }
+      
+      try {
+        DateTime now = DateTime.now();
+        DateTime startTime = now.subtract(const Duration(seconds: 2));
+        
+        List<UsageInfo> usageInfos = await UsageStats.queryUsageStats(startTime, now);
+        
+        for (UsageInfo usage in usageInfos) {
+          if (_blockedPackages.contains(usage.packageName) && 
+              usage.lastTimeUsed != null) {
+            
+            int lastUsedMillis = int.tryParse(usage.lastTimeUsed!) ?? 0;
+            DateTime lastUsedTime = DateTime.fromMillisecondsSinceEpoch(lastUsedMillis);
+            
+            // CONTINUOUS BACKGROUND BLOCKING - Always block, backup protection
+            if (now.difference(lastUsedTime).inSeconds < 2) {
+              String appName = _getAppNameFromPackage(usage.packageName!);
+              print('🔒 BACKGROUND CONTINUOUS: $appName - BACKUP PROTECTION!');
+              
+              // Simple background blocking - always effective
+              try {
+                await _channel.invokeMethod('killApp', {'packageName': usage.packageName!});
+                await _channel.invokeMethod('bringAppToForeground');
+                print('🛡️ Background: $appName blocked, Study Mode active');
+              } catch (blockError) {
+                print('⚠️ Background blocking error: $blockError');
+              }
+            }
+          }
+        }
+      } catch (e) {
+        print('Background monitoring error: $e');
+        // Continue monitoring - NEVER STOP PROTECTING
+      }
+    });
+    
+    // Send periodic status updates
+    Timer.periodic(const Duration(minutes: 1), (timer) {
+      if (_isMonitoring && _blockedPackages.isNotEmpty) {
+        print('CONTINUOUS blocking active - Monitoring ${_blockedPackages.length} apps');
+        service.invoke('update_notification', {
+          'title': 'Study Mode ACTIVE 🔒',
+          'body': 'Continuous blocking of ${_blockedPackages.length} apps - Always protected'
+        });
+      }
+    });
+  }
 }

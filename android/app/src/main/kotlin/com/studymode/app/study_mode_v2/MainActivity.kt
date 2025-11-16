@@ -66,6 +66,27 @@ class MainActivity : FlutterActivity() {
                         result.error("ERROR", "Failed to open Study Mode app", e.message)
                     }
                 }
+                "killApp" -> {
+                    try {
+                        val packageName = call.argument<String>("packageName")
+                        if (packageName != null) {
+                            killBlockedApp(packageName)
+                            result.success(true)
+                        } else {
+                            result.error("ERROR", "Package name is required", null)
+                        }
+                    } catch (e: Exception) {
+                        result.error("ERROR", "Failed to kill app", e.message)
+                    }
+                }
+                "bringAppToForeground" -> {
+                    try {
+                        bringAppToForeground()
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("ERROR", "Failed to bring app to foreground", e.message)
+                    }
+                }
                 "showBlockingToast" -> {
                     try {
                         val message = call.argument<String>("message")
@@ -131,18 +152,69 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun killBlockedApp(packageName: String) {
+        try {
+            val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            
+            // Method 1: Kill background processes
+            try {
+                activityManager.killBackgroundProcesses(packageName)
+                println("🔧 Killed background processes for $packageName")
+            } catch (e: Exception) {
+                println("⚠️ Failed to kill background processes: ${e.message}")
+            }
+            
+            // Method 2: Force kill running processes if we have admin rights
+            if (devicePolicyManager.isAdminActive(componentName)) {
+                try {
+                    val runningApps = activityManager.runningAppProcesses
+                    runningApps?.forEach { processInfo ->
+                        if (processInfo.processName.contains(packageName)) {
+                            android.os.Process.killProcess(processInfo.pid)
+                            println("🔪 Force killed process ${processInfo.processName}")
+                        }
+                    }
+                } catch (e: Exception) {
+                    println("⚠️ Failed to force kill processes: ${e.message}")
+                }
+            }
+            
+            // Method 3: Send home intent to clear app from foreground
+            val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            startActivity(homeIntent)
+            
+            println("💀 Kill attempt completed for $packageName")
+        } catch (e: Exception) {
+            println("❌ Error killing app $packageName: ${e.message}")
+        }
+    }
+    
     private fun bringAppToForeground() {
         try {
+            // Method 1: Intent with aggressive flags
             val intent = Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or 
+                       Intent.FLAG_ACTIVITY_CLEAR_TOP or 
+                       Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                       Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
             }
             startActivity(intent)
             println("📱 Study Mode brought to foreground via intent")
+            
+            // Method 2: Also try to move task to front
+            try {
+                val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                activityManager.moveTaskToFront(taskId, ActivityManager.MOVE_TASK_WITH_HOME or ActivityManager.MOVE_TASK_NO_USER_ACTION)
+                println("🎯 Study Mode moved to front via activity manager")
+            } catch (e: Exception) {
+                println("⚠️ Failed to move task to front: ${e.message}")
+            }
+            
         } catch (e: Exception) {
-            // Fallback: try to bring to front using activity manager
-            val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-            activityManager.moveTaskToFront(taskId, ActivityManager.MOVE_TASK_WITH_HOME)
-            println("📱 Study Mode brought to foreground via activity manager")
+            println("❌ Error bringing app to foreground: ${e.message}")
         }
     }
 

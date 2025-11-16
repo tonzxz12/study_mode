@@ -1,5 +1,24 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/styles.dart';
+import '../../data/services/data_sync_service.dart';
+import '../../data/models/subject.dart';
+import '../../data/models/task.dart';
+
+
+// Helper to convert color string to Color object
+Color _colorFromString(String colorString) {
+  try {
+    final int colorValue = int.parse(colorString.replaceFirst('#', '0xff'));
+    return Color(colorValue);
+  } catch (e) {
+    return Colors.blue; // Default color
+  }
+}
+
+// Helper to convert Color object to string
+String _colorToString(Color color) {
+  return '#${color.value.toRadixString(16).padLeft(8, '0').substring(2)}';
+}
 
 class PlannerScreen extends StatefulWidget {
   const PlannerScreen({super.key});
@@ -12,11 +31,198 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
   int _currentIndex = 0;
   final PageController _pageController = PageController();
   late TabController _tabController;
+  
+  List<Subject> subjects = [];
+  List<Task> tasks = [];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadData();
+  }
+  
+  Future<void> _loadData() async {
+    try {
+      final loadedSubjects = await DataSyncService.getAllSubjects();
+      final loadedTasks = await DataSyncService.getAllTasks();
+      
+      setState(() {
+        subjects = loadedSubjects;
+        tasks = loadedTasks;
+      });
+      
+      print('✅ Loaded ${subjects.length} subjects and ${tasks.length} tasks from DataSync');
+    } catch (e) {
+      print('❌ Error loading data: $e');
+      setState(() {
+        subjects = [];
+        tasks = [];
+      });
+    }
+  }
+  
+  Future<void> _updateTask(int index, Task updatedTask) async {
+    try {
+      await DataSyncService.updateTask(updatedTask);
+      setState(() {
+        tasks[index] = updatedTask;
+      });
+      print('✅ Task updated and synced: ${updatedTask.title}');
+    } catch (e) {
+      print('❌ Error updating task: $e');
+    }
+  }
+
+  void _editSubject(int index, Subject subject) {
+    final nameController = TextEditingController(text: subject.name);
+    Color selectedColor = _colorFromString(subject.color);
+    
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Edit Subject'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Subject Name',
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('Select Color'),
+              const SizedBox(height: 8),
+              Container(
+                height: 50,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: Colors.primaries.map(
+                      (color) => GestureDetector(
+                        onTap: () => setState(() => selectedColor = color),
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 6),
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                            border: selectedColor == color
+                                ? Border.all(color: Colors.white, width: 3)
+                                : Border.all(color: Colors.grey.shade300, width: 1),
+                            boxShadow: selectedColor == color
+                                ? [
+                                    BoxShadow(
+                                      color: color.withOpacity(0.4),
+                                      blurRadius: 8,
+                                      spreadRadius: 2,
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                        ),
+                      ),
+                    ).toList(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (nameController.text.isNotEmpty) {
+                  final updatedSubject = subject.copyWith(
+                    name: nameController.text,
+                    color: _colorToString(selectedColor),
+                  );
+                  
+                  try {
+                    await DataSyncService.saveSubject(updatedSubject);
+                    setState(() {
+                      subjects[index] = updatedSubject;
+                    });
+                  } catch (e) {
+                    print('❌ Error updating subject: $e');
+                  }
+                  Navigator.of(context).pop();
+                  
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Updated subject: ${nameController.text}')),
+                    );
+                  }
+                }
+              },
+              child: const Text('Update'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _deleteSubject(int index, Subject subject) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Subject'),
+        content: Text('Are you sure you want to delete "${subject.name}"? This will also delete all associated tasks.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                // Remove the subject
+                await DataSyncService.deleteSubject(subject.id);
+                
+                // Remove all tasks associated with this subject
+                final tasksToDelete = tasks.where((task) => task.subjectId == subject.id).toList();
+                for (final task in tasksToDelete) {
+                  await DataSyncService.deleteTask(task.id);
+                }
+                
+                // Update local state
+                setState(() {
+                  subjects.removeAt(index);
+                  tasks.removeWhere((task) => task.subjectId == subject.id);
+                });
+                
+                Navigator.of(context).pop();
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Deleted subject: ${subject.name}')),
+                  );
+                }
+              } catch (e) {
+                print('❌ Error deleting subject: $e');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Error deleting subject')),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppStyles.destructive,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -241,12 +447,21 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
                     const SizedBox(height: AppStyles.spaceXL),
 
                     // Content based on selected tab
-                    if (_currentIndex == 0) const SubjectsTab() else const TasksTab(),
+                    if (_currentIndex == 0) 
+                      SubjectsTab(
+                        subjects: subjects, 
+                        onSubjectEdit: _editSubject,
+                        onSubjectDelete: _deleteSubject,
+                      ) 
+                    else 
+                      TasksTab(tasks: tasks, subjects: subjects, onTaskUpdate: _updateTask),
                   ],
                 ),
               ),
 
-              const SizedBox(height: AppStyles.spaceXXL * 2), // Extra space for navbar
+              SizedBox(height: MediaQuery.of(context).size.width < 600 
+                ? AppStyles.spaceXXL * 3 // Mobile - extra space for floating navbar
+                : AppStyles.spaceXL), // Tablet/Desktop - less space needed
             ],
           ),
         ),
@@ -272,49 +487,74 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
           title: const Text('Add Subject'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Subject Name',
-                  hintText: 'e.g., Mathematics',
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: descriptionController,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  hintText: 'Optional description',
-                ),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 16),
-              Row(
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.9,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Color: '),
-                  ...Colors.primaries.take(6).map(
-                    (color) => GestureDetector(
-                      onTap: () => setState(() => selectedColor = color),
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        width: 30,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          color: color,
-                          shape: BoxShape.circle,
-                          border: selectedColor == color
-                              ? Border.all(color: Colors.black, width: 2)
-                              : null,
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Subject Name',
+                      hintText: 'e.g., Mathematics',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: descriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Description',
+                      hintText: 'Optional description',
+                    ),
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Color: '),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 60,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: Colors.primaries.map(
+                              (color) => GestureDetector(
+                                onTap: () => setState(() => selectedColor = color),
+                                child: Container(
+                                  margin: const EdgeInsets.symmetric(horizontal: 6),
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: color,
+                                    shape: BoxShape.circle,
+                                    border: selectedColor == color
+                                        ? Border.all(color: Colors.white, width: 3)
+                                        : Border.all(color: Colors.grey.shade300, width: 1),
+                                    boxShadow: selectedColor == color
+                                        ? [
+                                            BoxShadow(
+                                              color: color.withOpacity(0.4),
+                                              blurRadius: 8,
+                                              spreadRadius: 2,
+                                            ),
+                                          ]
+                                        : null,
+                                  ),
+                                ),
+                              ),
+                            ).toList(),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
           actions: [
             TextButton(
@@ -322,17 +562,40 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 if (nameController.text.isNotEmpty) {
-                  Navigator.of(context).pop();
-                  // Use a post frame callback to ensure Scaffold context is available
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                  final newSubject = Subject(
+                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                    name: nameController.text,
+                    description: descriptionController.text,
+                    color: _colorToString(selectedColor),
+                    userId: 'current_user', // TODO: Get actual user ID from auth
+                  );
+                  
+                  try {
+                    await DataSyncService.saveSubject(newSubject);
+                    
+                    // Update main widget state
+                    setState(() {
+                      subjects.add(newSubject);
+                    });
+                    
+                    // Close dialog
+                    Navigator.of(context).pop();
+                    
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('Added subject: ${nameController.text}')),
                       );
                     }
-                  });
+                  } catch (e) {
+                    print('❌ Error saving subject: $e');
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Error adding subject')),
+                      );
+                    }
+                  }
                 }
               },
               child: const Text('Add'),
@@ -346,7 +609,9 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
   void _showAddTaskDialog() {
     final titleController = TextEditingController();
     final descriptionController = TextEditingController();
-    String selectedSubject = 'Mathematics';
+    String selectedSubjectId = subjects.isNotEmpty ? subjects.first.id : '';
+    String selectedSubjectName = subjects.isNotEmpty ? subjects.first.name : 'General';
+    String selectedPriority = 'Medium';
     DateTime selectedDate = DateTime.now();
 
     showDialog(
@@ -374,16 +639,47 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
                 maxLines: 3,
               ),
               const SizedBox(height: 16),
+              if (subjects.isNotEmpty)
+                DropdownButtonFormField<String>(
+                  value: selectedSubjectId,
+                  decoration: const InputDecoration(labelText: 'Subject'),
+                  items: subjects
+                      .map((subject) => DropdownMenuItem<String>(
+                            value: subject.id,
+                            child: Text(subject.name),
+                          ))
+                      .toList(),
+                  onChanged: (value) {
+                    final selectedSubject = subjects.firstWhere((s) => s.id == value);
+                    setState(() {
+                      selectedSubjectId = value ?? subjects.first.id;
+                      selectedSubjectName = selectedSubject.name;
+                    });
+                  },
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppStyles.muted,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'Add subjects first to organize your tasks',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+              const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: selectedSubject,
-                decoration: const InputDecoration(labelText: 'Subject'),
-                items: ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'English']
-                    .map((subject) => DropdownMenuItem(
-                          value: subject,
-                          child: Text(subject),
+                value: selectedPriority,
+                decoration: const InputDecoration(labelText: 'Priority'),
+                items: ['High', 'Medium', 'Low']
+                    .map((priority) => DropdownMenuItem(
+                          value: priority,
+                          child: Text(priority),
                         ))
                     .toList(),
-                onChanged: (value) => setState(() => selectedSubject = value!),
+                onChanged: (value) => setState(() => selectedPriority = value ?? 'Medium'),
               ),
               const SizedBox(height: 16),
               ListTile(
@@ -410,17 +706,43 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 if (titleController.text.isNotEmpty) {
-                  Navigator.of(context).pop();
-                  // Use a post frame callback to ensure Scaffold context is available
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                  final newTask = Task(
+                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                    title: titleController.text,
+                    description: descriptionController.text,
+                    subjectId: selectedSubjectId,
+                    priority: selectedPriority,
+                    dueDate: selectedDate,
+                    isCompleted: false,
+                    userId: 'current_user', // TODO: Get actual user ID from auth
+                  );
+
+                  try {
+                    await DataSyncService.saveTask(newTask);
+                    
+                    // Update the main widget state
+                    setState(() {
+                      tasks.add(newTask);
+                    });
+
+                    // Close the dialog
+                    Navigator.of(context).pop();
+
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('Added task: ${titleController.text}')),
                       );
                     }
-                  });
+                  } catch (e) {
+                    print('❌ Error saving task: $e');
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Error adding task')),
+                      );
+                    }
+                  }
                 }
               },
               child: const Text('Add'),
@@ -433,44 +755,48 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
 }
 
 class SubjectsTab extends StatelessWidget {
-  const SubjectsTab({super.key});
+  final List<Subject> subjects;
+  final Function(int, Subject)? onSubjectEdit;
+  final Function(int, Subject)? onSubjectDelete;
+  
+  const SubjectsTab({
+    super.key, 
+    required this.subjects,
+    required this.onSubjectEdit,
+    required this.onSubjectDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final subjects = [
-      {'name': 'Mathematics', 'color': AppStyles.primary, 'progress': 0.75, 'sessions': 12},
-      {'name': 'Physics', 'color': AppStyles.success, 'progress': 0.60, 'sessions': 8},
-      {'name': 'Chemistry', 'color': AppStyles.warning, 'progress': 0.45, 'sessions': 6},
-      {'name': 'Biology', 'color': AppStyles.info, 'progress': 0.80, 'sessions': 15},
-      {'name': 'English', 'color': AppStyles.destructive, 'progress': 0.90, 'sessions': 20},
-    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Overview Stats
-        Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                title: 'Total Subjects',
-                value: '${subjects.length}',
-                subtitle: 'Active',
-                icon: Icons.book_rounded,
-                color: AppStyles.primary,
+        IntrinsicHeight(
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  title: 'Total Subjects',
+                  value: '${subjects.length}',
+                  subtitle: 'Active',
+                  icon: Icons.book_rounded,
+                  color: AppStyles.primary,
+                ),
               ),
-            ),
-            const SizedBox(width: AppStyles.spaceSM),
-            Expanded(
-              child: _buildStatCard(
-                title: 'Avg Progress',
-                value: '${((subjects.fold<double>(0, (sum, s) => sum + (s['progress'] as double)) / subjects.length) * 100).toInt()}%',
-                subtitle: 'Completed',
-                icon: Icons.trending_up_rounded,
-                color: AppStyles.success,
+              const SizedBox(width: AppStyles.spaceSM),
+              Expanded(
+                child: _buildStatCard(
+                  title: 'Avg Progress',
+                  value: subjects.isEmpty ? '0%' : '75%', // TODO: Add progress field to Subject model
+                  subtitle: 'Completed',
+                  icon: Icons.trending_up_rounded,
+                  color: AppStyles.success,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         
         const SizedBox(height: AppStyles.spaceXL),
@@ -484,14 +810,43 @@ class SubjectsTab extends StatelessWidget {
         ),
         const SizedBox(height: AppStyles.spaceMD),
         
-        ...subjects.asMap().entries.map((entry) {
-          final index = entry.key;
-          final subject = entry.value;
-          return Padding(
-            padding: EdgeInsets.only(bottom: index < subjects.length - 1 ? AppStyles.spaceSM : 0),
-            child: _buildSubjectCard(context, subject),
-          );
-        }).toList(),
+        if (subjects.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(AppStyles.spaceXXL),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.book_rounded,
+                  size: 48,
+                  color: AppStyles.mutedForeground,
+                ),
+                const SizedBox(height: AppStyles.spaceLG),
+                Text(
+                  'No Subjects Yet',
+                  style: AppStyles.subsectionHeader.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: AppStyles.spaceXS),
+                Text(
+                  'Add your first subject to start planning your studies',
+                  style: AppStyles.bodyMedium.copyWith(
+                    color: AppStyles.mutedForeground,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          )
+        else
+          ...subjects.asMap().entries.map((entry) {
+            final index = entry.key;
+            final subject = entry.value;
+            return Padding(
+              padding: EdgeInsets.only(bottom: index < subjects.length - 1 ? AppStyles.spaceSM : 0),
+              child: _buildSubjectCard(context, subject),
+            );
+          }).toList(),
       ],
     );
   }
@@ -561,7 +916,7 @@ class SubjectsTab extends StatelessWidget {
     );
   }
 
-  Widget _buildSubjectCard(BuildContext context, Map<String, dynamic> subject) {
+  Widget _buildSubjectCard(BuildContext context, Subject subject) {
     return Container(
       padding: const EdgeInsets.all(AppStyles.spaceLG),
       decoration: BoxDecoration(
@@ -587,13 +942,13 @@ class SubjectsTab extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(AppStyles.spaceXS),
                 decoration: BoxDecoration(
-                  color: (subject['color'] as Color).withOpacity(0.1),
+                  color: _colorFromString(subject.color).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(AppStyles.radiusSM),
                 ),
                 child: Text(
-                  (subject['name'] as String)[0],
+                  subject.name[0],
                   style: TextStyle(
-                    color: subject['color'] as Color,
+                    color: _colorFromString(subject.color),
                     fontWeight: FontWeight.w700,
                     fontSize: 16,
                   ),
@@ -605,13 +960,13 @@ class SubjectsTab extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      subject['name'] as String,
+                      subject.name,
                       style: AppStyles.bodyLarge.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     Text(
-                      '${subject['sessions']} study sessions completed',
+                      'Study sessions: ${subject.description.isEmpty ? 'None yet' : subject.description}',
                       style: AppStyles.bodySmall.copyWith(
                         color: AppStyles.mutedForeground,
                       ),
@@ -625,16 +980,54 @@ class SubjectsTab extends StatelessWidget {
                   vertical: AppStyles.spaceXS,
                 ),
                 decoration: BoxDecoration(
-                  color: (subject['color'] as Color).withOpacity(0.1),
+                  color: _colorFromString(subject.color).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(AppStyles.radiusSM),
                 ),
                 child: Text(
-                  '${((subject['progress'] as double) * 100).toInt()}%',
+                  'Active', // TODO: Add progress field to Subject model
                   style: AppStyles.bodySmall.copyWith(
-                    color: subject['color'] as Color,
+                    color: _colorFromString(subject.color),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+              ),
+              const SizedBox(width: AppStyles.spaceXS),
+              PopupMenuButton<String>(
+                icon: Icon(
+                  Icons.more_vert_rounded,
+                  color: AppStyles.mutedForeground,
+                  size: 18,
+                ),
+                onSelected: (value) {
+                  final index = subjects.indexWhere((s) => s.id == subject.id);
+                  if (value == 'edit') {
+                    onSubjectEdit?.call(index, subject);
+                  } else if (value == 'delete') {
+                    onSubjectDelete?.call(index, subject);
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit_rounded, size: 16),
+                        SizedBox(width: 8),
+                        Text('Edit'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline_rounded, size: 16),
+                        SizedBox(width: 8),
+                        Text('Delete'),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -664,10 +1057,10 @@ class SubjectsTab extends StatelessWidget {
                 ),
                 child: FractionallySizedBox(
                   alignment: Alignment.centerLeft,
-                  widthFactor: subject['progress'] as double,
+                  widthFactor: 0.65, // TODO: Add progress field to Subject model
                   child: Container(
                     decoration: BoxDecoration(
-                      color: subject['color'] as Color,
+                      color: _colorFromString(subject.color),
                       borderRadius: BorderRadius.circular(3),
                     ),
                   ),
@@ -682,43 +1075,25 @@ class SubjectsTab extends StatelessWidget {
 }
 
 class TasksTab extends StatefulWidget {
-  const TasksTab({super.key});
+  final List<Task> tasks;
+  final List<Subject> subjects;
+  final Function(int, Task) onTaskUpdate;
+  
+  const TasksTab({
+    super.key, 
+    required this.tasks, 
+    required this.subjects, 
+    required this.onTaskUpdate
+  });
 
   @override
   State<TasksTab> createState() => _TasksTabState();
 }
 
 class _TasksTabState extends State<TasksTab> {
-  final List<Map<String, dynamic>> tasks = [
-    {
-      'title': 'Complete Chapter 5 - Algebra',
-      'subject': 'Mathematics',
-      'dueDate': DateTime.now().add(const Duration(days: 2)),
-      'completed': false,
-      'priority': 'High',
-    },
-    {
-      'title': 'Physics Lab Report',
-      'subject': 'Physics',
-      'dueDate': DateTime.now().add(const Duration(days: 5)),
-      'completed': false,
-      'priority': 'Medium',
-    },
-    {
-      'title': 'Essay on Shakespeare',
-      'subject': 'English',
-      'dueDate': DateTime.now().add(const Duration(days: 1)),
-      'completed': true,
-      'priority': 'High',
-    },
-    {
-      'title': 'Chemistry Worksheet',
-      'subject': 'Chemistry',
-      'dueDate': DateTime.now().add(const Duration(days: 7)),
-      'completed': false,
-      'priority': 'Low',
-    },
-  ];
+  List<Task> get tasks => widget.tasks;
+  List<Subject> get subjects => widget.subjects;
+
 
   @override
   Widget build(BuildContext context) {
@@ -726,28 +1101,30 @@ class _TasksTabState extends State<TasksTab> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Overview Stats
-        Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                title: 'Total Tasks',
-                value: '${tasks.length}',
-                subtitle: 'Created',
-                icon: Icons.assignment_rounded,
-                color: AppStyles.primary,
+        IntrinsicHeight(
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  title: 'Total Tasks',
+                  value: '${tasks.length}',
+                  subtitle: 'Created',
+                  icon: Icons.assignment_rounded,
+                  color: AppStyles.primary,
+                ),
               ),
-            ),
-            const SizedBox(width: AppStyles.spaceSM),
-            Expanded(
-              child: _buildStatCard(
-                title: 'Completed',
-                value: '${tasks.where((t) => t['completed']).length}',
-                subtitle: 'Finished',
-                icon: Icons.check_circle_rounded,
-                color: AppStyles.success,
+              const SizedBox(width: AppStyles.spaceSM),
+              Expanded(
+                child: _buildStatCard(
+                  title: 'Completed',
+                  value: '${tasks.where((t) => t.isCompleted).length}',
+                  subtitle: 'Finished',
+                  icon: Icons.check_circle_rounded,
+                  color: AppStyles.success,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         
         const SizedBox(height: AppStyles.spaceXL),
@@ -761,14 +1138,43 @@ class _TasksTabState extends State<TasksTab> {
         ),
         const SizedBox(height: AppStyles.spaceMD),
         
-        ...tasks.asMap().entries.map((entry) {
-          final index = entry.key;
-          final task = entry.value;
-          return Padding(
-            padding: EdgeInsets.only(bottom: index < tasks.length - 1 ? AppStyles.spaceSM : 0),
-            child: _buildTaskCard(context, task, index),
-          );
-        }).toList(),
+        if (tasks.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(AppStyles.spaceXXL),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.assignment_rounded,
+                  size: 48,
+                  color: AppStyles.mutedForeground,
+                ),
+                const SizedBox(height: AppStyles.spaceLG),
+                Text(
+                  'No Tasks Yet',
+                  style: AppStyles.subsectionHeader.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: AppStyles.spaceXS),
+                Text(
+                  'Add your first task to start organizing your work',
+                  style: AppStyles.bodyMedium.copyWith(
+                    color: AppStyles.mutedForeground,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          )
+        else
+          ...tasks.asMap().entries.map((entry) {
+            final index = entry.key;
+            final task = entry.value;
+            return Padding(
+              padding: EdgeInsets.only(bottom: index < tasks.length - 1 ? AppStyles.spaceSM : 0),
+              child: _buildTaskCard(context, task, index),
+            );
+          }).toList(),
       ],
     );
   }
@@ -838,9 +1244,13 @@ class _TasksTabState extends State<TasksTab> {
     );
   }
 
-  Widget _buildTaskCard(BuildContext context, Map<String, dynamic> task, int index) {
-    final isOverdue = !task['completed'] && DateTime.now().isAfter(task['dueDate']);
-    final priorityColor = _getPriorityColor(task['priority']);
+  Widget _buildTaskCard(BuildContext context, Task task, int index) {
+    final isOverdue = !task.isCompleted && DateTime.now().isAfter(task.dueDate);
+    final priorityColor = _getPriorityColor(task.priority);
+    final taskSubject = subjects.firstWhere(
+      (s) => s.id == task.subjectId,
+      orElse: () => Subject(id: '', name: 'Unknown', color: '#0066CC', userId: 'current_user'),
+    );
     
     return Container(
       padding: const EdgeInsets.all(AppStyles.spaceLG),
@@ -867,11 +1277,12 @@ class _TasksTabState extends State<TasksTab> {
               borderRadius: BorderRadius.circular(AppStyles.radiusSM),
             ),
             child: Checkbox(
-              value: task['completed'],
+              value: task.isCompleted,
               onChanged: (value) {
-                setState(() {
-                  task['completed'] = value ?? false;
-                });
+                final updatedTask = task.copyWith(
+                  isCompleted: value ?? false,
+                );
+                widget.onTaskUpdate(index, updatedTask);
               },
               activeColor: AppStyles.success,
               shape: RoundedRectangleBorder(
@@ -886,11 +1297,11 @@ class _TasksTabState extends State<TasksTab> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  task['title'],
+                  task.title,
                   style: AppStyles.bodyMedium.copyWith(
                     fontWeight: FontWeight.w500,
-                    decoration: task['completed'] ? TextDecoration.lineThrough : TextDecoration.none,
-                    color: task['completed'] ? AppStyles.mutedForeground : AppStyles.foreground,
+                    decoration: task.isCompleted ? TextDecoration.lineThrough : TextDecoration.none,
+                    color: task.isCompleted ? AppStyles.mutedForeground : AppStyles.foreground,
                   ),
                 ),
                 const SizedBox(height: AppStyles.spaceXS),
@@ -906,7 +1317,7 @@ class _TasksTabState extends State<TasksTab> {
                         borderRadius: BorderRadius.circular(AppStyles.radiusSM),
                       ),
                       child: Text(
-                        task['subject'],
+                        taskSubject.name,
                         style: AppStyles.bodySmall.copyWith(
                           color: AppStyles.mutedForeground,
                           fontSize: 11,
@@ -925,7 +1336,7 @@ class _TasksTabState extends State<TasksTab> {
                         borderRadius: BorderRadius.circular(AppStyles.radiusSM),
                       ),
                       child: Text(
-                        task['priority'],
+                        task.priority,
                         style: TextStyle(
                           color: priorityColor,
                           fontSize: 11,
@@ -937,7 +1348,7 @@ class _TasksTabState extends State<TasksTab> {
                 ),
                 const SizedBox(height: AppStyles.spaceXS),
                 Text(
-                  'Due: ${task['dueDate'].day}/${task['dueDate'].month}/${task['dueDate'].year}',
+                  'Due: ${task.dueDate.day}/${task.dueDate.month}/${task.dueDate.year}',
                   style: AppStyles.bodySmall.copyWith(
                     color: isOverdue ? AppStyles.destructive : AppStyles.mutedForeground,
                     fontWeight: isOverdue ? FontWeight.w500 : FontWeight.normal,
@@ -977,16 +1388,164 @@ class _TasksTabState extends State<TasksTab> {
             ],
             onSelected: (value) {
               if (value == 'delete') {
-                setState(() {
-                  tasks.removeAt(index);
-                });
+                _deleteTask(index, task);
+              } else if (value == 'edit') {
+                _editTask(index, task);
               }
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('$value task: ${task['title']}')),
-              );
             },
           ),
         ],
+      ),
+    );
+  }
+
+  void _deleteTask(int index, Task task) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Task'),
+        content: Text('Are you sure you want to delete "${task.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                // Remove the task using DataSyncService
+                await DataSyncService.deleteTask(task.id);
+                
+                Navigator.of(context).pop();
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Deleted task: ${task.title}')),
+                  );
+                }
+              } catch (e) {
+                print('❌ Error deleting task: $e');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Error deleting task')),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppStyles.destructive,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _editTask(int index, Task task) {
+    final titleController = TextEditingController(text: task.title);
+    final descriptionController = TextEditingController(text: task.description);
+    String selectedSubjectId = task.subjectId;
+    String selectedPriority = task.priority;
+    DateTime selectedDate = task.dueDate;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Edit Task'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(
+                  labelText: 'Task Title',
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: descriptionController,
+                decoration: const InputDecoration(
+                  labelText: 'Description',
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 16),
+              if (subjects.isNotEmpty)
+                DropdownButtonFormField<String>(
+                  value: selectedSubjectId,
+                  decoration: const InputDecoration(labelText: 'Subject'),
+                  items: subjects
+                      .map((subject) => DropdownMenuItem<String>(
+                            value: subject.id,
+                            child: Text(subject.name),
+                          ))
+                      .toList(),
+                  onChanged: (value) => setState(() => selectedSubjectId = value ?? subjects.first.id),
+                ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: selectedPriority,
+                decoration: const InputDecoration(labelText: 'Priority'),
+                items: ['High', 'Medium', 'Low']
+                    .map((priority) => DropdownMenuItem(
+                          value: priority,
+                          child: Text(priority),
+                        ))
+                    .toList(),
+                onChanged: (value) => setState(() => selectedPriority = value ?? 'Medium'),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                title: const Text('Due Date'),
+                subtitle: Text('${selectedDate.day}/${selectedDate.month}/${selectedDate.year}'),
+                trailing: const Icon(Icons.calendar_today),
+                onTap: () async {
+                  final date = await showDatePicker(
+                    context: context,
+                    initialDate: selectedDate,
+                    firstDate: DateTime.now(),
+                    lastDate: DateTime.now().add(const Duration(days: 365)),
+                  );
+                  if (date != null) {
+                    setState(() => selectedDate = date);
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (titleController.text.isNotEmpty) {
+                  final updatedTask = task.copyWith(
+                    title: titleController.text,
+                    description: descriptionController.text,
+                    subjectId: selectedSubjectId,
+                    priority: selectedPriority,
+                    dueDate: selectedDate,
+                  );
+
+                  widget.onTaskUpdate(index, updatedTask);
+                  Navigator.of(context).pop();
+                  
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Updated task: ${titleController.text}')),
+                    );
+                  }
+                }
+              },
+              child: const Text('Update'),
+            ),
+          ],
+        ),
       ),
     );
   }

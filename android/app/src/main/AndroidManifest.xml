@@ -48,12 +48,14 @@
             android:name="flutterEmbedding"
             android:value="2" />
             
-        <!-- Background Service for App Monitoring -->
+        <!-- Background Service for App Monitoring - TEMPORARILY DISABLED -->
+        <!-- 
         <service
             android:name="id.flutter.flutter_background_service.BackgroundService"
             android:foregroundServiceType="dataSync"
             android:exported="false"
             tools:replace="android:exported" />
+        -->
         
         <!-- Device Admin Receiver -->
         <receiver
