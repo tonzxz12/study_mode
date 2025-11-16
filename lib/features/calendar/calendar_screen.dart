@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/theme/styles.dart';
+import '../../core/theme/theme_colors.dart';
 import '../../core/services/firestore_service.dart';
 
 import '../../data/services/calendar_service.dart';
@@ -317,7 +318,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppStyles.background,
+      backgroundColor: context.background,
       body: SafeArea(
         bottom: false,
         child: RefreshIndicator(
@@ -346,13 +347,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           Container(
                             padding: const EdgeInsets.all(AppStyles.spaceXS),
                             decoration: BoxDecoration(
-                              color: AppStyles.primary.withOpacity(0.1),
+                              color: context.primary.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(AppStyles.radiusMD),
                             ),
                             child: Icon(
                               Icons.calendar_today_rounded,
                               size: 32,
-                              color: AppStyles.primary,
+                              color: context.primary,
                             ),
                           ),
                           const SizedBox(width: AppStyles.spaceMD),
@@ -366,14 +367,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                   style: AppStyles.screenTitle.copyWith(
                                     height: 1.1,
                                     letterSpacing: -0.5,
-                                    color: AppStyles.primary,
+                                    color: context.primary,
                                     fontWeight: FontWeight.w900,
                                   ),
                                 ),
                                 Text(
                                   'Study Schedule',
                                   style: TextStyle(
-                                    color: AppStyles.foreground,
+                                    color: context.foreground,
                                     fontWeight: FontWeight.w600,
                                     fontSize: 18,
                                   ),
@@ -388,8 +389,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     ElevatedButton(
                       onPressed: _addScheduleItem,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppStyles.primary,
-                        foregroundColor: Colors.white,
+                        backgroundColor: context.primary,
+                        foregroundColor: context.primaryForeground,
                         padding: EdgeInsets.symmetric(
                           horizontal: MediaQuery.of(context).size.width < 400 ? AppStyles.spaceMD : AppStyles.spaceLG,
                           vertical: AppStyles.spaceMD,
@@ -451,7 +452,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           value: _getTodaySessionCount() == '0' ? '0' : _getTodaySessionCount(),
                           subtitle: 'Sessions',
                           icon: Icons.check_circle_rounded,
-                          color: AppStyles.success,
+                          color: context.success,
                         ),
                       ),
                     ],
@@ -464,19 +465,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(AppStyles.spaceLG),
                     decoration: BoxDecoration(
-                      color: AppStyles.card,
+                      color: context.card,
                       borderRadius: BorderRadius.circular(AppStyles.radiusMD),
                       border: Border.all(
-                        color: AppStyles.border,
+                        color: context.border,
                         width: 1,
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppStyles.black.withOpacity(0.02),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
+                      boxShadow: context.shadowSM,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -488,7 +483,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               children: [
                                 Icon(
                                   Icons.today_rounded,
-                                  color: AppStyles.mutedForeground,
+                                  color: context.mutedForeground,
                                   size: 18,
                                 ),
                                 const SizedBox(width: AppStyles.spaceXS),
@@ -504,7 +499,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 Container(
                                   padding: const EdgeInsets.all(4),
                                   decoration: BoxDecoration(
-                                    color: AppStyles.muted.withOpacity(0.5),
+                                    color: context.muted,
                                     borderRadius: BorderRadius.circular(AppStyles.radiusMD),
                                   ),
                                   child: Row(
@@ -523,15 +518,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                             vertical: AppStyles.spaceXS,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: _showAllSchedules ? AppStyles.card : Colors.transparent,
+                                            color: _showAllSchedules ? context.card : Colors.transparent,
                                             borderRadius: BorderRadius.circular(AppStyles.radiusSM),
-                                            boxShadow: _showAllSchedules ? [
-                                              BoxShadow(
-                                                color: AppStyles.black.withOpacity(0.04),
-                                                blurRadius: 4,
-                                                offset: const Offset(0, 1),
-                                              ),
-                                            ] : null,
+                                            boxShadow: _showAllSchedules ? context.shadowSM : null,
                                           ),
                                           child: Row(
                                             mainAxisAlignment: MainAxisAlignment.center,
@@ -539,13 +528,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                               Icon(
                                                 Icons.view_list_rounded,
                                                 size: 16,
-                                                color: _showAllSchedules ? AppStyles.primary : AppStyles.mutedForeground,
+                                                color: _showAllSchedules ? context.primary : context.mutedForeground,
                                               ),
                                               const SizedBox(width: 4),
                                               Text(
                                                 'All',
                                                 style: AppStyles.bodySmall.copyWith(
-                                                  color: _showAllSchedules ? AppStyles.foreground : AppStyles.mutedForeground,
+                                                  color: _showAllSchedules ? context.foreground : context.mutedForeground,
                                                   fontWeight: _showAllSchedules ? FontWeight.w600 : FontWeight.w500,
                                                 ),
                                               ),
@@ -566,15 +555,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                             vertical: AppStyles.spaceXS,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: !_showAllSchedules ? AppStyles.card : Colors.transparent,
+                                            color: !_showAllSchedules ? context.card : Colors.transparent,
                                             borderRadius: BorderRadius.circular(AppStyles.radiusSM),
-                                            boxShadow: !_showAllSchedules ? [
-                                              BoxShadow(
-                                                color: AppStyles.black.withOpacity(0.04),
-                                                blurRadius: 4,
-                                                offset: const Offset(0, 1),
-                                              ),
-                                            ] : null,
+                                            boxShadow: !_showAllSchedules ? context.shadowSM : null,
                                           ),
                                           child: Row(
                                             mainAxisAlignment: MainAxisAlignment.center,
@@ -582,13 +565,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                               Icon(
                                                 Icons.calendar_today,
                                                 size: 16,
-                                                color: !_showAllSchedules ? AppStyles.primary : AppStyles.mutedForeground,
+                                                color: !_showAllSchedules ? context.primary : context.mutedForeground,
                                               ),
                                               const SizedBox(width: 4),
                                               Text(
                                                 'Date',
                                                 style: AppStyles.bodySmall.copyWith(
-                                                  color: !_showAllSchedules ? AppStyles.foreground : AppStyles.mutedForeground,
+                                                  color: !_showAllSchedules ? context.foreground : context.mutedForeground,
                                                   fontWeight: !_showAllSchedules ? FontWeight.w600 : FontWeight.w500,
                                                 ),
                                               ),
@@ -611,19 +594,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                   vertical: AppStyles.spaceSM,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: AppStyles.card,
+                                  color: context.card,
                                   borderRadius: BorderRadius.circular(AppStyles.radiusMD),
                                   border: Border.all(
-                                    color: AppStyles.border,
+                                    color: context.border,
                                     width: 1,
                                   ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppStyles.black.withOpacity(0.02),
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 1),
-                                    ),
-                                  ],
+                                  boxShadow: context.shadowSM,
                                 ),
                                 child: DropdownButtonHideUnderline(
                                   child: DropdownButton<DateTime>(
@@ -632,15 +609,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                     hint: Text(
                                       'Select Date',
                                       style: AppStyles.bodyMedium.copyWith(
-                                        color: AppStyles.mutedForeground,
+                                        color: context.mutedForeground,
                                       ),
                                     ),
                                     icon: Icon(
                                       Icons.keyboard_arrow_down,
-                                      color: AppStyles.primary,
+                                      color: context.primary,
                                     ),
                                     style: AppStyles.bodyMedium.copyWith(
-                                      color: AppStyles.primary,
+                                      color: context.primary,
                                       fontWeight: FontWeight.w600,
                                     ),
                                     items: _getAvailableDates().map((DateTime date) {
@@ -649,7 +626,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                         child: Text(
                                           _formatDateForDropdown(date),
                                           style: AppStyles.bodyMedium.copyWith(
-                                            color: AppStyles.foreground,
+                                            color: context.foreground,
                                           ),
                                         ),
                                       );
@@ -678,20 +655,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                   Container(
                                     padding: const EdgeInsets.all(AppStyles.spaceLG),
                                     decoration: BoxDecoration(
-                                      color: AppStyles.muted.withOpacity(0.1),
+                                      color: context.muted,
                                       shape: BoxShape.circle,
                                     ),
                                     child: Icon(
                                       Icons.calendar_month_rounded,
                                       size: 48,
-                                      color: AppStyles.mutedForeground,
+                                      color: context.mutedForeground,
                                     ),
                                   ),
                                   const SizedBox(height: AppStyles.spaceLG),
                                   Text(
                                     _showAllSchedules ? 'No schedules yet' : 'No schedule for this date',
                                     style: AppStyles.bodyLarge.copyWith(
-                                      color: AppStyles.foreground,
+                                      color: context.foreground,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
@@ -699,7 +676,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                   Text(
                                     'Create your first schedule to get started',
                                     style: AppStyles.bodyMedium.copyWith(
-                                      color: AppStyles.mutedForeground,
+                                      color: context.mutedForeground,
                                     ),
                                     textAlign: TextAlign.center,
                                   ),
@@ -738,19 +715,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return Container(
       padding: const EdgeInsets.all(AppStyles.spaceLG),
       decoration: BoxDecoration(
-        color: AppStyles.card,
+        color: context.card,
         borderRadius: BorderRadius.circular(AppStyles.radiusMD),
         border: Border.all(
-          color: AppStyles.border,
+          color: context.border,
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: AppStyles.black.withOpacity(0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        boxShadow: context.shadowSM,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -763,12 +734,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 title,
                 style: AppStyles.bodyMedium.copyWith(
                   fontWeight: FontWeight.w500,
-                  color: AppStyles.mutedForeground,
+                  color: context.mutedForeground,
                 ),
               ),
               Icon(
                 icon,
-                color: AppStyles.mutedForeground,
+                color: context.mutedForeground,
                 size: 18,
               ),
             ],
@@ -785,7 +756,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           Text(
             subtitle,
             style: AppStyles.bodySmall.copyWith(
-              color: AppStyles.mutedForeground,
+              color: context.mutedForeground,
             ),
           ),
         ],
@@ -803,28 +774,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
       margin: const EdgeInsets.only(bottom: AppStyles.spaceMD),
       padding: const EdgeInsets.all(AppStyles.spaceLG),
       decoration: BoxDecoration(
-        color: AppStyles.card,
+        color: context.card,
         borderRadius: BorderRadius.circular(AppStyles.radiusMD),
         border: Border.all(
           color: isCompleted 
-              ? AppStyles.success.withOpacity(0.3)
-              : AppStyles.border,
+              ? context.success.withOpacity(0.3)
+              : context.border,
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: AppStyles.black.withOpacity(0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        boxShadow: context.shadowSM,
       ),
       child: Row(
         children: [
           Checkbox(
             value: isCompleted,
             onChanged: (_) => _toggleScheduleItem(event.id),
-            activeColor: AppStyles.success,
+            activeColor: context.success,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(4),
             ),
@@ -840,15 +805,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     fontWeight: FontWeight.w600,
                     decoration: isCompleted ? TextDecoration.lineThrough : null,
                     color: isCompleted 
-                        ? AppStyles.mutedForeground
-                        : AppStyles.foreground,
+                        ? context.mutedForeground
+                        : context.foreground,
                   ),
                 ),
                 if (event.description.isNotEmpty)
                   Text(
                     event.description,
                     style: AppStyles.bodySmall.copyWith(
-                      color: AppStyles.mutedForeground,
+                      color: context.mutedForeground,
                       decoration: isCompleted ? TextDecoration.lineThrough : null,
                     ),
                   ),
@@ -861,13 +826,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         Icon(
                           Icons.book_rounded,
                           size: 14,
-                          color: AppStyles.primary.withOpacity(0.7),
+                          color: context.primary.withOpacity(0.7),
                         ),
                         const SizedBox(width: 4),
                         Text(
                           _getSubjectName(event.subjectId!),
                           style: AppStyles.bodySmall.copyWith(
-                            color: AppStyles.primary.withOpacity(0.8),
+                            color: context.primary.withOpacity(0.8),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -905,13 +870,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       Icon(
                         Icons.calendar_today,
                         size: 14,
-                        color: AppStyles.mutedForeground,
+                        color: context.mutedForeground,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         '${event.startTime.day}/${event.startTime.month}/${event.startTime.year}',
                         style: AppStyles.bodySmall.copyWith(
-                          color: AppStyles.mutedForeground,
+                          color: context.mutedForeground,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -919,7 +884,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       Text(
                         '•',
                         style: AppStyles.bodySmall.copyWith(
-                          color: AppStyles.mutedForeground,
+                          color: context.mutedForeground,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -927,13 +892,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     Icon(
                       Icons.access_time,
                       size: 14,
-                      color: AppStyles.primary,
+                      color: context.primary,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       timeStr,
                       style: AppStyles.bodySmall.copyWith(
-                        color: AppStyles.primary,
+                        color: context.primary,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -941,14 +906,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     Text(
                       '•',
                       style: AppStyles.bodySmall.copyWith(
-                        color: AppStyles.mutedForeground,
+                        color: context.mutedForeground,
                       ),
                     ),
                     const SizedBox(width: 8),
                     Text(
                       '${event.durationMinutes}min',
                       style: AppStyles.bodySmall.copyWith(
-                        color: AppStyles.mutedForeground,
+                        color: context.mutedForeground,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -992,7 +957,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
             ],
             child: Icon(
               Icons.more_vert_rounded,
-              color: AppStyles.mutedForeground,
+              color: context.mutedForeground,
             ),
           ),
         ],
@@ -1142,7 +1107,7 @@ class _ScheduleDialogState extends State<_ScheduleDialog> {
           // Date Selection
           Row(
             children: [
-              Icon(Icons.calendar_today, color: AppStyles.primary),
+              Icon(Icons.calendar_today, color: context.primary),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -1162,7 +1127,7 @@ class _ScheduleDialogState extends State<_ScheduleDialog> {
           // Time Selection
           Row(
             children: [
-              Icon(Icons.access_time, color: AppStyles.primary),
+              Icon(Icons.access_time, color: context.primary),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -1181,7 +1146,7 @@ class _ScheduleDialogState extends State<_ScheduleDialog> {
           const SizedBox(height: 16),
           Row(
             children: [
-              Icon(Icons.timer_rounded, color: AppStyles.primary),
+              Icon(Icons.timer_rounded, color: context.primary),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -1204,14 +1169,14 @@ class _ScheduleDialogState extends State<_ScheduleDialog> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: AppStyles.primary.withOpacity(0.1),
+                  color: context.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   '${_targetDurationMinutes}min',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: AppStyles.primary,
+                    color: context.primary,
                   ),
                 ),
               ),
