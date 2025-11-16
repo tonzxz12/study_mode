@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/styles.dart';
+import '../../core/theme/theme_colors.dart';
 import '../../data/services/data_sync_service.dart';
 import '../../data/models/subject.dart';
 import '../../data/models/task.dart';
@@ -235,16 +236,7 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            AppStyles.primary.withOpacity(0.05),
-            AppStyles.background,
-          ],
-        ),
-      ),
+      color: context.background,
       child: SafeArea(
         bottom: false,
         child: SingleChildScrollView(
@@ -271,13 +263,13 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
                           Container(
                             padding: const EdgeInsets.all(AppStyles.spaceXS),
                             decoration: BoxDecoration(
-                              color: AppStyles.primary.withOpacity(0.1),
+                              color: context.primary.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(AppStyles.radiusMD),
                             ),
                             child: Icon(
                               Icons.event_note_rounded,
                               size: 32,
-                              color: AppStyles.primary,
+                              color: context.primary,
                             ),
                           ),
                           const SizedBox(width: AppStyles.spaceMD),
@@ -291,14 +283,14 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
                                   style: AppStyles.screenTitle.copyWith(
                                     height: 1.1,
                                     letterSpacing: -0.5,
-                                    color: AppStyles.primary,
+                                    color: context.primary,
                                     fontWeight: FontWeight.w900,
                                   ),
                                 ),
                                 Text(
                                   'Study Organization',
                                   style: TextStyle(
-                                    color: AppStyles.foreground,
+                                    color: context.foreground,
                                     fontWeight: FontWeight.w600,
                                     fontSize: 18,
                                   ),
@@ -313,8 +305,8 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
                     ElevatedButton(
                       onPressed: _showAddDialog,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppStyles.primary,
-                        foregroundColor: Colors.white,
+                        backgroundColor: context.primary,
+                        foregroundColor: context.primaryForeground,
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppStyles.spaceLG,
                           vertical: AppStyles.spaceMD
@@ -355,7 +347,7 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
                     Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: AppStyles.muted.withOpacity(0.5),
+                        color: context.muted.withOpacity(0.5),
                         borderRadius: BorderRadius.circular(AppStyles.radiusMD),
                       ),
                       child: Row(
@@ -369,15 +361,9 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
                                   horizontal: AppStyles.spaceMD,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: _currentIndex == 0 ? AppStyles.card : Colors.transparent,
+                                  color: _currentIndex == 0 ? context.card : Colors.transparent,
                                   borderRadius: BorderRadius.circular(AppStyles.radiusSM),
-                                  boxShadow: _currentIndex == 0 ? [
-                                    BoxShadow(
-                                      color: AppStyles.black.withOpacity(0.04),
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 1),
-                                    ),
-                                  ] : null,
+                                  boxShadow: _currentIndex == 0 ? context.shadowSM : null,
                                 ),
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
@@ -385,14 +371,14 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
                                     Icon(
                                       Icons.book_rounded,
                                       size: 18,
-                                      color: _currentIndex == 0 ? AppStyles.primary : AppStyles.mutedForeground,
+                                      color: _currentIndex == 0 ? context.primary : context.mutedForeground,
                                     ),
                                     const SizedBox(width: AppStyles.spaceXS),
                                     Text(
                                       'Subjects',
                                       style: AppStyles.bodyMedium.copyWith(
                                         fontWeight: _currentIndex == 0 ? FontWeight.w600 : FontWeight.w500,
-                                        color: _currentIndex == 0 ? AppStyles.foreground : AppStyles.mutedForeground,
+                                        color: _currentIndex == 0 ? context.foreground : context.mutedForeground,
                                       ),
                                     ),
                                   ],
@@ -409,15 +395,9 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
                                   horizontal: AppStyles.spaceMD,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: _currentIndex == 1 ? AppStyles.card : Colors.transparent,
+                                  color: _currentIndex == 1 ? context.card : Colors.transparent,
                                   borderRadius: BorderRadius.circular(AppStyles.radiusSM),
-                                  boxShadow: _currentIndex == 1 ? [
-                                    BoxShadow(
-                                      color: AppStyles.black.withOpacity(0.04),
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 1),
-                                    ),
-                                  ] : null,
+                                  boxShadow: _currentIndex == 1 ? context.shadowSM : null,
                                 ),
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
@@ -425,14 +405,14 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
                                     Icon(
                                       Icons.assignment_rounded,
                                       size: 18,
-                                      color: _currentIndex == 1 ? AppStyles.primary : AppStyles.mutedForeground,
+                                      color: _currentIndex == 1 ? context.primary : context.mutedForeground,
                                     ),
                                     const SizedBox(width: AppStyles.spaceXS),
                                     Text(
                                       'Tasks',
                                       style: AppStyles.bodyMedium.copyWith(
                                         fontWeight: _currentIndex == 1 ? FontWeight.w600 : FontWeight.w500,
-                                        color: _currentIndex == 1 ? AppStyles.foreground : AppStyles.mutedForeground,
+                                        color: _currentIndex == 1 ? context.foreground : context.mutedForeground,
                                       ),
                                     ),
                                   ],
@@ -661,7 +641,7 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AppStyles.muted,
+                    color: context.muted,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Text(
@@ -818,7 +798,7 @@ class SubjectsTab extends StatelessWidget {
                 Icon(
                   Icons.book_rounded,
                   size: 48,
-                  color: AppStyles.mutedForeground,
+                  color: context.mutedForeground,
                 ),
                 const SizedBox(height: AppStyles.spaceLG),
                 Text(
@@ -831,7 +811,7 @@ class SubjectsTab extends StatelessWidget {
                 Text(
                   'Add your first subject to start planning your studies',
                   style: AppStyles.bodyMedium.copyWith(
-                    color: AppStyles.mutedForeground,
+                    color: context.mutedForeground,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -920,19 +900,13 @@ class SubjectsTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppStyles.spaceLG),
       decoration: BoxDecoration(
-        color: AppStyles.card,
+        color: context.card,
         borderRadius: BorderRadius.circular(AppStyles.radiusMD),
         border: Border.all(
-          color: AppStyles.border,
+          color: context.border,
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: AppStyles.black.withOpacity(0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        boxShadow: context.shadowSM,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -968,7 +942,7 @@ class SubjectsTab extends StatelessWidget {
                     Text(
                       'Study sessions: ${subject.description.isEmpty ? 'None yet' : subject.description}',
                       style: AppStyles.bodySmall.copyWith(
-                        color: AppStyles.mutedForeground,
+                        color: context.mutedForeground,
                       ),
                     ),
                   ],
@@ -995,7 +969,7 @@ class SubjectsTab extends StatelessWidget {
               PopupMenuButton<String>(
                 icon: Icon(
                   Icons.more_vert_rounded,
-                  color: AppStyles.mutedForeground,
+                  color: context.mutedForeground,
                   size: 18,
                 ),
                 onSelected: (value) {
@@ -1043,7 +1017,7 @@ class SubjectsTab extends StatelessWidget {
                     'Progress',
                     style: AppStyles.bodySmall.copyWith(
                       fontWeight: FontWeight.w500,
-                      color: AppStyles.mutedForeground,
+                      color: context.mutedForeground,
                     ),
                   ),
                 ],
@@ -1052,7 +1026,7 @@ class SubjectsTab extends StatelessWidget {
               Container(
                 height: 6,
                 decoration: BoxDecoration(
-                  color: AppStyles.muted,
+                  color: context.muted,
                   borderRadius: BorderRadius.circular(3),
                 ),
                 child: FractionallySizedBox(
@@ -1146,7 +1120,7 @@ class _TasksTabState extends State<TasksTab> {
                 Icon(
                   Icons.assignment_rounded,
                   size: 48,
-                  color: AppStyles.mutedForeground,
+                  color: context.mutedForeground,
                 ),
                 const SizedBox(height: AppStyles.spaceLG),
                 Text(
@@ -1159,7 +1133,7 @@ class _TasksTabState extends State<TasksTab> {
                 Text(
                   'Add your first task to start organizing your work',
                   style: AppStyles.bodyMedium.copyWith(
-                    color: AppStyles.mutedForeground,
+                    color: context.mutedForeground,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -1255,10 +1229,10 @@ class _TasksTabState extends State<TasksTab> {
     return Container(
       padding: const EdgeInsets.all(AppStyles.spaceLG),
       decoration: BoxDecoration(
-        color: isOverdue ? AppStyles.destructive.withOpacity(0.05) : AppStyles.card,
+        color: isOverdue ? context.destructive.withOpacity(0.05) : context.card,
         borderRadius: BorderRadius.circular(AppStyles.radiusMD),
         border: Border.all(
-          color: isOverdue ? AppStyles.destructive.withOpacity(0.2) : AppStyles.border,
+          color: isOverdue ? context.destructive.withOpacity(0.2) : context.border,
           width: 1,
         ),
         boxShadow: [
@@ -1301,7 +1275,7 @@ class _TasksTabState extends State<TasksTab> {
                   style: AppStyles.bodyMedium.copyWith(
                     fontWeight: FontWeight.w500,
                     decoration: task.isCompleted ? TextDecoration.lineThrough : TextDecoration.none,
-                    color: task.isCompleted ? AppStyles.mutedForeground : AppStyles.foreground,
+                    color: task.isCompleted ? context.mutedForeground : context.foreground,
                   ),
                 ),
                 const SizedBox(height: AppStyles.spaceXS),
@@ -1313,13 +1287,13 @@ class _TasksTabState extends State<TasksTab> {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: AppStyles.muted.withOpacity(0.7),
+                        color: context.muted.withOpacity(0.7),
                         borderRadius: BorderRadius.circular(AppStyles.radiusSM),
                       ),
                       child: Text(
                         taskSubject.name,
                         style: AppStyles.bodySmall.copyWith(
-                          color: AppStyles.mutedForeground,
+                          color: context.mutedForeground,
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
                         ),
@@ -1350,7 +1324,7 @@ class _TasksTabState extends State<TasksTab> {
                 Text(
                   'Due: ${task.dueDate.day}/${task.dueDate.month}/${task.dueDate.year}',
                   style: AppStyles.bodySmall.copyWith(
-                    color: isOverdue ? AppStyles.destructive : AppStyles.mutedForeground,
+                    color: isOverdue ? context.destructive : context.mutedForeground,
                     fontWeight: isOverdue ? FontWeight.w500 : FontWeight.normal,
                   ),
                 ),
@@ -1361,7 +1335,7 @@ class _TasksTabState extends State<TasksTab> {
           PopupMenuButton<String>(
             icon: Icon(
               Icons.more_vert_rounded,
-              color: AppStyles.mutedForeground,
+              color: context.mutedForeground,
               size: 18,
             ),
             itemBuilder: (context) => [
