@@ -235,15 +235,17 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: context.background,
-      child: SafeArea(
+    return Scaffold(
+      backgroundColor: context.background,
+      body: SafeArea(
         bottom: false,
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height,
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               // Header Section with Planner Title and Planning Badge
               Container(
                 padding: const EdgeInsets.fromLTRB(
@@ -443,6 +445,7 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
                 ? AppStyles.spaceXXL * 3 // Mobile - extra space for floating navbar
                 : AppStyles.spaceXL), // Tablet/Desktop - less space needed
             ],
+            ),
           ),
         ),
       ),
@@ -590,7 +593,6 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
     final titleController = TextEditingController();
     final descriptionController = TextEditingController();
     String selectedSubjectId = subjects.isNotEmpty ? subjects.first.id : '';
-    String selectedSubjectName = subjects.isNotEmpty ? subjects.first.name : 'General';
     String selectedPriority = 'Medium';
     DateTime selectedDate = DateTime.now();
 
@@ -630,10 +632,8 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
                           ))
                       .toList(),
                   onChanged: (value) {
-                    final selectedSubject = subjects.firstWhere((s) => s.id == value);
                     setState(() {
                       selectedSubjectId = value ?? subjects.first.id;
-                      selectedSubjectName = selectedSubject.name;
                     });
                   },
                 )
@@ -786,6 +786,7 @@ class SubjectsTab extends StatelessWidget {
           'Your Subjects',
           style: AppStyles.subsectionHeader.copyWith(
             fontWeight: FontWeight.w600,
+            color: context.foreground,
           ),
         ),
         const SizedBox(height: AppStyles.spaceMD),
@@ -805,6 +806,7 @@ class SubjectsTab extends StatelessWidget {
                   'No Subjects Yet',
                   style: AppStyles.subsectionHeader.copyWith(
                     fontWeight: FontWeight.w600,
+                    color: context.foreground,
                   ),
                 ),
                 const SizedBox(height: AppStyles.spaceXS),
@@ -937,6 +939,7 @@ class SubjectsTab extends StatelessWidget {
                       subject.name,
                       style: AppStyles.bodyLarge.copyWith(
                         fontWeight: FontWeight.w600,
+                        color: context.foreground,
                       ),
                     ),
                     Text(
@@ -1108,6 +1111,7 @@ class _TasksTabState extends State<TasksTab> {
           'Your Tasks',
           style: AppStyles.subsectionHeader.copyWith(
             fontWeight: FontWeight.w600,
+            color: context.foreground,
           ),
         ),
         const SizedBox(height: AppStyles.spaceMD),
@@ -1127,6 +1131,7 @@ class _TasksTabState extends State<TasksTab> {
                   'No Tasks Yet',
                   style: AppStyles.subsectionHeader.copyWith(
                     fontWeight: FontWeight.w600,
+                    color: context.foreground,
                   ),
                 ),
                 const SizedBox(height: AppStyles.spaceXS),
@@ -1220,7 +1225,7 @@ class _TasksTabState extends State<TasksTab> {
 
   Widget _buildTaskCard(BuildContext context, Task task, int index) {
     final isOverdue = !task.isCompleted && DateTime.now().isAfter(task.dueDate);
-    final priorityColor = _getPriorityColor(task.priority);
+    final priorityColor = _getPriorityColor(context, task.priority);
     final taskSubject = subjects.firstWhere(
       (s) => s.id == task.subjectId,
       orElse: () => Subject(id: '', name: 'Unknown', color: '#0066CC', userId: 'current_user'),
@@ -1235,13 +1240,7 @@ class _TasksTabState extends State<TasksTab> {
           color: isOverdue ? context.destructive.withOpacity(0.2) : context.border,
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: AppStyles.black.withOpacity(0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        boxShadow: context.shadowSM,
       ),
       child: Row(
         children: [
@@ -1258,7 +1257,7 @@ class _TasksTabState extends State<TasksTab> {
                 );
                 widget.onTaskUpdate(index, updatedTask);
               },
-              activeColor: AppStyles.success,
+              activeColor: context.success,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(4),
               ),
@@ -1524,16 +1523,16 @@ class _TasksTabState extends State<TasksTab> {
     );
   }
 
-  Color _getPriorityColor(String priority) {
+  Color _getPriorityColor(BuildContext context, String priority) {
     switch (priority) {
       case 'High':
-        return AppStyles.destructive;
+        return context.destructive;
       case 'Medium':
-        return AppStyles.warning;
+        return context.warning;
       case 'Low':
-        return AppStyles.success;
+        return context.success;
       default:
-        return AppStyles.mutedForeground;
+        return context.mutedForeground;
     }
   }
 }
