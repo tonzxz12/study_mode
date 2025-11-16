@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../theme/styles.dart';
+import '../theme/theme_colors.dart';
 
 class StraightTransparentNavBar extends StatefulWidget {
   final int selectedIndex;
@@ -27,13 +28,29 @@ class StraightTransparentNavBarState extends State<StraightTransparentNavBar> {
 
     return Container(
       height: AppStyles.navBarHeight,
-      decoration: AppStyles.navBarDecoration,
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: context.foreground.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, -10),
+          ),
+        ],
+      ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppStyles.navBarRadius),
         child: BackdropFilter(
           filter: AppStyles.glassBlur,
           child: Container(
-            decoration: AppStyles.glassDecoration,
+            decoration: BoxDecoration(
+              color: context.background.withOpacity(0.3),
+              border: Border(
+                top: BorderSide(
+                  color: context.border.withOpacity(0.15),
+                  width: 0.5,
+                ),
+              ),
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -42,7 +59,7 @@ class StraightTransparentNavBarState extends State<StraightTransparentNavBar> {
                   icon: CupertinoIcons.home,
                   selected: widget.selectedIndex == 0,
                   onPressed: () => widget.onItemTapped(0),
-                  defaultColor: AppStyles.glassIconDefault,
+                  defaultColor: context.mutedForeground,
                   selectedColor: primaryColor,
                 ),
                 NavBarIcon(
@@ -50,18 +67,32 @@ class StraightTransparentNavBarState extends State<StraightTransparentNavBar> {
                   icon: CupertinoIcons.calendar,
                   selected: widget.selectedIndex == 1,
                   onPressed: () => widget.onItemTapped(1),
-                  defaultColor: AppStyles.glassIconDefault,
+                  defaultColor: context.mutedForeground,
                   selectedColor: primaryColor,
                 ),
                 // Center Timer Button
                 Container(
                   padding: const EdgeInsets.all(4),
-                  decoration: AppStyles.fabDecoration(primaryColor),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [primaryColor, primaryColor.withOpacity(0.8)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(AppStyles.radiusLG),
+                    boxShadow: [
+                      BoxShadow(
+                        color: primaryColor.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
                   child: IconButton(
                     onPressed: widget.onCenterPressed,
                     icon: Icon(
                       CupertinoIcons.timer,
-                      color: AppStyles.white,
+                      color: context.primaryForeground,
                       size: AppStyles.navBarCenterIconSize,
                     ),
                   ),
@@ -71,7 +102,7 @@ class StraightTransparentNavBarState extends State<StraightTransparentNavBar> {
                   icon: Icons.event_note_rounded,
                   selected: widget.selectedIndex == 2,
                   onPressed: () => widget.onItemTapped(2),
-                  defaultColor: AppStyles.glassIconDefault,
+                  defaultColor: context.mutedForeground,
                   selectedColor: primaryColor,
                 ),
                 NavBarIcon(
@@ -79,7 +110,7 @@ class StraightTransparentNavBarState extends State<StraightTransparentNavBar> {
                   icon: CupertinoIcons.settings,
                   selected: widget.selectedIndex == 3,
                   onPressed: () => widget.onItemTapped(3),
-                  defaultColor: AppStyles.glassIconDefault,
+                  defaultColor: context.mutedForeground,
                   selectedColor: primaryColor,
                 ),
               ],
@@ -117,7 +148,10 @@ class NavBarIcon extends StatelessWidget {
       highlightColor: Colors.transparent,
       icon: Container(
         padding: const EdgeInsets.all(AppStyles.spaceMD),
-        decoration: selected ? AppStyles.selectedNavIconDecoration : null,
+        decoration: selected ? BoxDecoration(
+          color: selectedColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(AppStyles.radiusMD),
+        ) : null,
         child: Icon(
           icon,
           size: AppStyles.navBarIconSize,
