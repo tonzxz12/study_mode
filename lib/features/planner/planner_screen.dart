@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/styles.dart';
 import '../../core/theme/theme_colors.dart';
-import '../../data/services/data_sync_service.dart';
+import '../../core/services/enhanced_firestore_service.dart';
+import '../../core/services/firestore_service.dart';
 import '../../data/models/subject.dart';
 import '../../data/models/task.dart';
 
@@ -45,17 +46,22 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
   
   Future<void> _loadData() async {
     try {
-      final loadedSubjects = await DataSyncService.getAllSubjects();
-      final loadedTasks = await DataSyncService.getAllTasks();
+      print('🔍 === PLANNER SCREEN LOADING DATA ===');
+      print('📱 Loading data directly from online database (Firestore)...');
+      print('🆔 Current Firebase user ID: ${FirestoreService.currentUserId}');
+      print('📧 Current Firebase user email: ${FirestoreService.currentUserId != null ? "User authenticated" : "No user"}');
+      
+      final loadedSubjects = await EnhancedFirestoreService.getAllSubjects();
+      final loadedTasks = await EnhancedFirestoreService.getAllTasks();
       
       setState(() {
         subjects = loadedSubjects;
         tasks = loadedTasks;
       });
       
-      print('✅ Loaded ${subjects.length} subjects and ${tasks.length} tasks from DataSync');
+      print('✅ Loaded ${subjects.length} subjects and ${tasks.length} tasks from online database');
     } catch (e) {
-      print('❌ Error loading data: $e');
+      print('❌ Error loading data from online database: $e');
       setState(() {
         subjects = [];
         tasks = [];
@@ -65,7 +71,8 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
   
   Future<void> _updateTask(int index, Task updatedTask) async {
     try {
-      await DataSyncService.updateTask(updatedTask);
+      final success = await EnhancedFirestoreService.saveTask(updatedTask);
+      if (!success) throw Exception('Failed to save task to online database');
       setState(() {
         tasks[index] = updatedTask;
       });
@@ -146,7 +153,8 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
                   );
                   
                   try {
-                    await DataSyncService.saveSubject(updatedSubject);
+                    final success = await EnhancedFirestoreService.saveSubject(updatedSubject);
+                    if (!success) throw Exception('Failed to update subject in online database');
                     setState(() {
                       subjects[index] = updatedSubject;
                     });
@@ -185,12 +193,14 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
             onPressed: () async {
               try {
                 // Remove the subject
-                await DataSyncService.deleteSubject(subject.id);
+                final success = await EnhancedFirestoreService.deleteSubject(subject.id);
+                if (!success) throw Exception('Failed to delete subject from online database');
                 
                 // Remove all tasks associated with this subject
                 final tasksToDelete = tasks.where((task) => task.subjectId == subject.id).toList();
                 for (final task in tasksToDelete) {
-                  await DataSyncService.deleteTask(task.id);
+                  final taskDeleteSuccess = await EnhancedFirestoreService.deleteTask(task.id);
+                  if (!taskDeleteSuccess) print('⚠️ Failed to delete task ${task.id} from online database');
                 }
                 
                 // Update local state
@@ -552,11 +562,12 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
                     name: nameController.text,
                     description: descriptionController.text,
                     color: _colorToString(selectedColor),
-                    userId: 'current_user', // TODO: Get actual user ID from auth
+                    userId: FirestoreService.currentUserId ?? 'anonymous',
                   );
                   
                   try {
-                    await DataSyncService.saveSubject(newSubject);
+                    final success = await EnhancedFirestoreService.saveSubject(newSubject);
+                    if (!success) throw Exception('Failed to save subject to online database');
                     
                     // Update main widget state
                     setState(() {
@@ -696,11 +707,12 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
                     priority: selectedPriority,
                     dueDate: selectedDate,
                     isCompleted: false,
-                    userId: 'current_user', // TODO: Get actual user ID from auth
+                    userId: FirestoreService.currentUserId ?? 'anonymous',
                   );
 
                   try {
-                    await DataSyncService.saveTask(newTask);
+                    final success = await EnhancedFirestoreService.saveTask(newTask);
+                    if (!success) throw Exception('Failed to save task to online database');
                     
                     // Update the main widget state
                     setState(() {
@@ -1228,7 +1240,7 @@ class _TasksTabState extends State<TasksTab> {
     final priorityColor = _getPriorityColor(context, task.priority);
     final taskSubject = subjects.firstWhere(
       (s) => s.id == task.subjectId,
-      orElse: () => Subject(id: '', name: 'Unknown', color: '#0066CC', userId: 'current_user'),
+      orElse: () => Subject(id: '', name: 'Unknown', color: '#0066CC', userId: FirestoreService.currentUserId ?? 'anonymous'),
     );
     
     return Container(
@@ -1386,8 +1398,9 @@ class _TasksTabState extends State<TasksTab> {
           ElevatedButton(
             onPressed: () async {
               try {
-                // Remove the task using DataSyncService
-                await DataSyncService.deleteTask(task.id);
+                // Remove the task using EnhancedFirestoreService
+                final success = await EnhancedFirestoreService.deleteTask(task.id);
+                if (!success) throw Exception('Failed to delete task from online database');
                 
                 Navigator.of(context).pop();
                 

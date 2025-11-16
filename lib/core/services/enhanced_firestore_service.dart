@@ -89,23 +89,34 @@ class EnhancedFirestoreService {
   }
 
   static Future<List<Subject>> getAllSubjects() async {
+    debugPrint('🔍 === GETTING ALL SUBJECTS ===');
+    debugPrint('📋 Current user ID: $currentUserId');
+    debugPrint('📋 Firebase Auth current user: ${_auth.currentUser?.uid}');
+    debugPrint('📋 Firebase Auth current user email: ${_auth.currentUser?.email}');
+    
     if (currentUserId == null) {
       debugPrint('❌ Cannot get subjects: No authenticated user');
+      debugPrint('📋 Auth state: ${_auth.currentUser}');
       return [];
     }
 
     try {
       debugPrint('📖 Fetching subjects from Firestore for user: $currentUserId');
+      debugPrint('📋 Query: collection(subjects).where(userId == $currentUserId)');
       
       final querySnapshot = await _firestore
           .collection('subjects')
           .where('userId', isEqualTo: currentUserId)
-          .orderBy('createdAt', descending: false)
           .get();
+      
+      debugPrint('📊 Query result: ${querySnapshot.docs.length} documents found');
 
       final subjects = querySnapshot.docs.map((doc) {
         final data = doc.data();
-        debugPrint('📄 Subject document data: $data');
+        debugPrint('📄 Document ID: ${doc.id}');
+        debugPrint('📄 Document data: $data');
+        debugPrint('📄 Document userId: ${data['userId']}');
+        debugPrint('📄 Document name: ${data['name']}');
         
         return Subject(
           id: data['id'],
@@ -229,7 +240,6 @@ class EnhancedFirestoreService {
       final querySnapshot = await _firestore
           .collection('study_sessions')
           .where('userId', isEqualTo: currentUserId)
-          .orderBy('startTime', descending: true)
           .get();
 
       final sessions = querySnapshot.docs.map((doc) {
@@ -312,23 +322,34 @@ class EnhancedFirestoreService {
   }
 
   static Future<List<Task>> getAllTasks() async {
+    debugPrint('🔍 === GETTING ALL TASKS ===');
+    debugPrint('📋 Current user ID: $currentUserId');
+    debugPrint('📋 Firebase Auth current user: ${_auth.currentUser?.uid}');
+    debugPrint('📋 Firebase Auth current user email: ${_auth.currentUser?.email}');
+    
     if (currentUserId == null) {
       debugPrint('❌ Cannot get tasks: No authenticated user');
+      debugPrint('📋 Auth state: ${_auth.currentUser}');
       return [];
     }
 
     try {
       debugPrint('📖 Fetching tasks from Firestore for user: $currentUserId');
+      debugPrint('📋 Query: collection(tasks).where(userId == $currentUserId)');
       
       final querySnapshot = await _firestore
           .collection('tasks')
           .where('userId', isEqualTo: currentUserId)
-          .orderBy('createdAt', descending: false)
           .get();
+      
+      debugPrint('📊 Query result: ${querySnapshot.docs.length} documents found');
 
       final tasks = querySnapshot.docs.map((doc) {
         final data = doc.data();
-        debugPrint('📄 Task document data: $data');
+        debugPrint('📄 Document ID: ${doc.id}');
+        debugPrint('📄 Document data: $data');
+        debugPrint('📄 Document userId: ${data['userId']}');
+        debugPrint('📄 Document title: ${data['title']}');
         
         return Task(
           id: data['id'],
@@ -353,6 +374,30 @@ class EnhancedFirestoreService {
         debugPrint('📋 Firebase error message: ${e.message}');
       }
       return [];
+    }
+  }
+
+  static Future<bool> deleteTask(String taskId) async {
+    if (currentUserId == null) {
+      debugPrint('❌ Cannot delete task: No authenticated user');
+      return false;
+    }
+
+    try {
+      debugPrint('🗑️ Deleting task: $taskId');
+      
+      await _firestore.collection('tasks').doc(taskId).delete();
+      
+      debugPrint('✅ Task deleted successfully from Firestore');
+      return true;
+
+    } catch (e) {
+      debugPrint('❌ Error deleting task from Firestore: $e');
+      if (e is FirebaseException) {
+        debugPrint('📋 Firebase error code: ${e.code}');
+        debugPrint('📋 Firebase error message: ${e.message}');
+      }
+      return false;
     }
   }
 

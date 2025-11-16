@@ -17,7 +17,9 @@ import 'data/adapters/duration_adapter.dart';
 import 'data/services/data_sync_service.dart';
 import 'data/services/app_blocking_settings_service.dart';
 import 'core/services/firestore_service.dart';
+import 'core/services/enhanced_firestore_service.dart';
 import 'data/services/calendar_service.dart';
+import 'package:uuid/uuid.dart';
 
 import 'core/theme/styles.dart';
 import 'core/theme/theme_colors.dart';
@@ -118,10 +120,10 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
   // Real data variables
   List<Subject> _subjects = [];
   List<Task> _tasks = [];
-  List<CalendarEvent> _todayEvents = [];
-  List<StudySession> _todaySessions = [];
-  Duration _todayStudyTime = Duration.zero;
-  Duration _weeklyStudyTime = Duration.zero;
+  List<CalendarEvent> _upcomingEvents = [];
+  List<StudySession> _allSessions = [];
+  Duration _totalStudyTime = Duration.zero;
+  Duration _allTimeStudyTime = Duration.zero;
   int _currentStreak = 0;
   bool _isLoading = true;
   AppBlockingSettings? _blockingSettings;
@@ -144,6 +146,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
       
       // Get current user ID
       final currentUserId = FirestoreService.currentUserId;
+      print('🔑 Current User ID: $currentUserId');
       if (currentUserId == null) {
         throw Exception('User not authenticated');
       }
@@ -152,70 +155,67 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
       await DataSyncService.initialize();
       await CalendarService.initialize();
       
-      // Load subjects first
+      // Load subjects directly from online database (Firestore)
       _subjects = await DataSyncService.getAllSubjects();
-      print('✅ Loaded ${_subjects.length} subjects');
-      
-      // Sync with Firestore if data seems limited
-      if (_subjects.length < 3) {
-        try {
-          await DataSyncService.forceSyncToFirestore();
-          _subjects = await DataSyncService.getAllSubjects();
-          print('🔄 Synced and reloaded ${_subjects.length} subjects from Firestore');
-        } catch (syncError) {
-          print('⚠️ Could not sync with Firestore: $syncError');
-        }
+      print('✅ Loaded ${_subjects.length} subjects from online database');
+      for (final subject in _subjects) {
+        print('   - Subject: ${subject.name} (ID: ${subject.id})');
       }
       
-      // Load tasks  
+      // Load tasks from online database (Firestore)
       _tasks = await DataSyncService.getAllTasks();
-      print('✅ Loaded ${_tasks.length} tasks');
+      print('✅ Loaded ${_tasks.length} tasks from online database');
       
-      // Load today's calendar events with sync
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
+      // Check if this is a new user or data loading issue
+      if (_subjects.isEmpty && _tasks.isEmpty && _allSessions.isEmpty) {
+        print('📊 No data found for user: $currentUserId');
+        print('💡 This could mean:');
+        print('   - New user account (no data created yet)');
+        print('   - Data sync issue with Firestore');
+        print('   - User ID mismatch');
+        print('🚀 Next steps: Add subjects in Planner, then start studying!');
+      } else {
+        print('🚀 Data loaded successfully! User has existing study history.');
+      }
       
+      // Load all calendar events (both past and future for comprehensive view)
       try {
         await CalendarService.syncWithFirestore(currentUserId);
         final allEvents = await CalendarService.getAllCalendarEvents(currentUserId);
-        _todayEvents = allEvents.where((event) {
-          final eventDate = DateTime(event.startTime.year, event.startTime.month, event.startTime.day);
-          return eventDate == today;
-        }).toList();
-        print('✅ Loaded ${_todayEvents.length} today events');
+        // Show ALL events from the user (no date filtering)
+        _upcomingEvents = allEvents.toList();
+        print('✅ Loaded ${_upcomingEvents.length} total events (all-time)');
+        for (final event in _upcomingEvents.take(3)) {
+          print('   - Event: ${event.title} on ${event.startTime} (Subject: ${event.subjectId})');
+        }
       } catch (calendarError) {
         print('⚠️ Error loading calendar events: $calendarError');
-        _todayEvents = [];
+        _upcomingEvents = [];
       }
       
-      // Load study sessions for today
+      // Load all study sessions from online database (Firestore)
       try {
         final allSessions = await DataSyncService.getAllStudySessions();
-        _todaySessions = allSessions.where((session) {
-          final sessionDate = DateTime(session.startTime.year, session.startTime.month, session.startTime.day);
-          return sessionDate == today && session.userId == currentUserId;
+        _allSessions = allSessions.where((session) {
+          return session.userId == currentUserId;
         }).toList();
-        print('✅ Loaded ${_todaySessions.length} today sessions');
+        print('✅ Loaded ${_allSessions.length} total sessions from online database (all-time)');
+        for (final session in _allSessions.take(5)) {
+          print('   - Session: ${session.subjectId} - ${session.actualDuration.inMinutes}min on ${session.startTime}');
+        }
         
-        // Calculate today's study time
-        _todayStudyTime = _todaySessions.fold(Duration.zero, (total, session) => total + session.actualDuration);
-        print('📊 Today study time: ${_todayStudyTime.inMinutes} minutes');
+        // Calculate all-time study time
+        _totalStudyTime = _allSessions.fold(Duration.zero, (total, session) => total + session.actualDuration);
+        print('📊 All-time study time: ${_totalStudyTime.inMinutes} minutes');
         
-        // Calculate weekly study time
-        final weekStart = today.subtract(Duration(days: today.weekday - 1));
-        final weekEnd = weekStart.add(const Duration(days: 7));
-        final weeklySessions = allSessions.where((session) {
-          return session.startTime.isAfter(weekStart) && 
-                 session.startTime.isBefore(weekEnd) &&
-                 session.userId == currentUserId;
-        }).toList();
-        _weeklyStudyTime = weeklySessions.fold(Duration.zero, (total, session) => total + session.actualDuration);
-        print('📊 Weekly study time: ${_weeklyStudyTime.inMinutes} minutes');
+        // All-time study time
+        _allTimeStudyTime = _totalStudyTime;
+        print('📊 Total study time: ${_allTimeStudyTime.inMinutes} minutes');
       } catch (sessionError) {
-        print('⚠️ Error loading study sessions: $sessionError');
-        _todaySessions = [];
-        _todayStudyTime = Duration.zero;
-        _weeklyStudyTime = Duration.zero;
+        print('⚠️ Error loading study sessions from online database: $sessionError');
+        _allSessions = [];
+        _totalStudyTime = Duration.zero;
+        _allTimeStudyTime = Duration.zero;
       }
       
       // Calculate current streak
@@ -231,14 +231,42 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
         _blockingSettings = null;
       }
       
+      // Final summary of loaded data
+      print('\n📊 === FINAL DATA SUMMARY ===');
+      print('📚 Subjects: ${_subjects.length}');
+      print('📋 Tasks: ${_tasks.length}');
+      print('📅 Events: ${_upcomingEvents.length}');
+      print('🎯 Sessions: ${_allSessions.length}');
+      print('⏱️ Total study time: ${_allTimeStudyTime.inHours}h ${_allTimeStudyTime.inMinutes % 60}m');
+      print('🔥 Current streak: $_currentStreak days');
+      print('=========================\n');
+      
       setState(() {
         _isLoading = false;
       });
     } catch (e) {
       print('❌ Error loading real data: $e');
+      print('Stack trace: ${StackTrace.current}');
+      // Still set loading to false and show what data we have
       setState(() {
         _isLoading = false;
       });
+      // Try to load some fallback data from online database
+      try {
+        final currentUserId = FirestoreService.currentUserId;
+        print('🔄 Attempting fallback data loading from online database...');
+        final allSubjects = await DataSyncService.getAllSubjects();
+        final allSessions = await DataSyncService.getAllStudySessions();
+        
+        _subjects = allSubjects;
+        _allSessions = allSessions.where((session) => session.userId == currentUserId).toList();
+        _totalStudyTime = _allSessions.fold(Duration.zero, (total, session) => total + session.actualDuration);
+        _allTimeStudyTime = _totalStudyTime;
+        
+        print('🔄 Loaded fallback data from online database: ${_subjects.length} subjects, ${_allSessions.length} sessions');
+      } catch (fallbackError) {
+        print('❌ Fallback loading from online database also failed: $fallbackError');
+      }
     }
   }
 
@@ -247,18 +275,22 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
       final now = DateTime.now();
       int streak = 0;
       
+      // Use already loaded sessions instead of reloading
+      final sessions = _allSessions;
+      print('🔍 Calculating streak from ${sessions.length} total sessions');
+      
       for (int i = 0; i < 365; i++) { // Check up to 1 year back
         final date = DateTime(now.year, now.month, now.day).subtract(Duration(days: i));
-        final allDaySessions = await DataSyncService.getAllStudySessions();
-        final sessions = allDaySessions.where((session) {
+        final daySessions = sessions.where((session) {
           final sessionDate = DateTime(session.startTime.year, session.startTime.month, session.startTime.day);
-          return sessionDate == date;
+          return sessionDate.isAtSameMomentAs(date) && session.actualDuration.inMinutes >= 25;
         }).toList();
         
-        if (sessions.isNotEmpty && sessions.any((s) => s.actualDuration.inMinutes >= 25)) {
-          // At least 25 minutes of study (1 pomodoro)
+        if (daySessions.isNotEmpty) {
           streak++;
+          if (i == 0) print('🔥 Today: ${daySessions.length} qualifying sessions');
         } else {
+          if (i == 0) print('🔥 Today: 0 qualifying sessions - streak ends');
           break;
         }
       }
@@ -456,9 +488,9 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Today's Overview
+                    // All-Time Overview
                     Text(
-                      'Today\'s Overview',
+                      'All-Time Overview',
                       style: AppStyles.sectionHeader.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
@@ -470,13 +502,17 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                       child: CircularProgressIndicator(),
                     ) : LayoutBuilder(
                       builder: (context, constraints) {
-                        final todayHours = _todayStudyTime.inHours;
-                        final todayMinutes = _todayStudyTime.inMinutes % 60;
-                        final todayTimeStr = todayHours > 0 ? '${todayHours}h ${todayMinutes}m' : '${todayMinutes}m';
+                        final allTimeHours = _allTimeStudyTime.inHours;
+                        final allTimeMinutes = _allTimeStudyTime.inMinutes % 60;
+                        final allTimeStr = allTimeHours > 0 ? '${allTimeHours}h ${allTimeMinutes}m' : '${allTimeMinutes}m';
                         
-                        // Calculate weekly progress (simple calculation for now)
-                        final focusScore = _weeklyStudyTime.inMinutes > 0 ? 
-                          min(100, (_weeklyStudyTime.inMinutes * 100 / (7 * 60)).round()) : 0;
+                        // Calculate overall progress (all-time sessions completion rate)
+                        final totalSessions = _allSessions.length;
+                        final completedSessions = _allSessions.where((s) => s.actualDuration >= s.targetDuration).length;
+                        final focusScore = totalSessions > 0 ? 
+                          min(100, (completedSessions * 100 / totalSessions).round()) : 0;
+                        
+                        print('📊 Stats calculation: ${totalSessions} total sessions, ${completedSessions} completed, ${focusScore}% focus score');
                         
                         if (constraints.maxWidth > 600) {
                           // Wide screen: 4 cards in a row
@@ -484,9 +520,9 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                             children: [
                               Expanded(
                                 child: _buildStatCard(
-                                  title: 'Study Time',
-                                  value: todayTimeStr.isEmpty ? '0m' : todayTimeStr,
-                                  subtitle: 'Today',
+                                  title: 'Total Time',
+                                  value: allTimeStr.isEmpty ? '0m' : allTimeStr,
+                                  subtitle: 'All-time',
                                   icon: Icons.timer_rounded,
                                   color: context.timerFocus,
                                 ),
@@ -495,8 +531,8 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                               Expanded(
                                 child: _buildStatCard(
                                   title: 'Sessions',
-                                  value: '${_todaySessions.length}',
-                                  subtitle: 'Completed',
+                                  value: '${_allSessions.length}',
+                                  subtitle: 'Total',
                                   icon: Icons.check_circle_rounded,
                                   color: context.success,
                                 ),
@@ -506,7 +542,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                                 child: _buildStatCard(
                                   title: 'Focus Score',
                                   value: '${focusScore}%',
-                                  subtitle: 'This week',
+                                  subtitle: 'Completion',
                                   icon: Icons.psychology_rounded,
                                   color: context.primary,
                                 ),
@@ -531,9 +567,9 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                                 children: [
                                   Expanded(
                                     child: _buildStatCard(
-                                      title: 'Study Time',
-                                      value: todayTimeStr.isEmpty ? '0m' : todayTimeStr,
-                                      subtitle: 'Today',
+                                      title: 'Total Time',
+                                      value: allTimeStr.isEmpty ? '0m' : allTimeStr,
+                                      subtitle: 'All-time',
                                       icon: Icons.timer_rounded,
                                       color: context.timerFocus,
                                     ),
@@ -542,8 +578,8 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                                   Expanded(
                                     child: _buildStatCard(
                                       title: 'Sessions',
-                                      value: '${_todaySessions.length}',
-                                      subtitle: 'Completed',
+                                      value: '${_allSessions.length}',
+                                      subtitle: 'Total',
                                       icon: Icons.check_circle_rounded,
                                       color: context.success,
                                     ),
@@ -557,7 +593,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                                     child: _buildStatCard(
                                       title: 'Focus Score',
                                       value: '${focusScore}%',
-                                      subtitle: 'This week',
+                                      subtitle: 'Completion',
                                       icon: Icons.psychology_rounded,
                                       color: context.primary,
                                     ),
@@ -607,7 +643,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                               ),
                               const SizedBox(width: AppStyles.spaceXS),
                               Text(
-                                'Weekly Progress',
+                                'Subject Progress',
                                 style: AppStyles.subsectionHeader.copyWith(
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -647,14 +683,14 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                               ),
                               const SizedBox(width: AppStyles.spaceXS),
                               Text(
-                                'Today\'s Schedule',
+                                'All Events',
                                 style: AppStyles.subsectionHeader.copyWith(
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
                               const Spacer(),
                               Text(
-                                '${DateTime.now().day} ${_getMonthName(DateTime.now().month)}',
+                                '${_upcomingEvents.length} events',
                                 style: AppStyles.bodySmall.copyWith(
                                   color: context.mutedForeground,
                                 ),
@@ -720,6 +756,29 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                             ),
                           ),
                         ],
+                      ),
+                    ),
+                    
+                    const SizedBox(height: AppStyles.spaceXL),
+                    
+                    // Debug Database Test Button
+                    Container(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _testFirestoreConnection,
+                        icon: const Icon(Icons.cloud_sync_rounded, size: 20),
+                        label: const Text('Test Database Connection'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: context.primary,
+                          foregroundColor: context.primaryForeground,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppStyles.spaceLG,
+                            vertical: AppStyles.spaceMD,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppStyles.radiusMD),
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -845,6 +904,8 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
 
   // Helper methods for real data display
   List<Widget> _buildSubjectProgressBars() {
+    print('📊 Building subject progress: ${_subjects.length} subjects, ${_allSessions.length} sessions');
+    
     if (_subjects.isEmpty) {
       return [
         Text(
@@ -857,18 +918,25 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
     }
     
     List<Widget> bars = [];
-    for (int i = 0; i < _subjects.take(3).length; i++) {
+    for (int i = 0; i < _subjects.take(5).length; i++) {  // Show up to 5 subjects
       final subject = _subjects[i];
       
-      // Calculate progress based on completed vs total sessions for this subject
-      final subjectSessions = _todaySessions.where((s) => s.subjectId == subject.id).toList();
-      final progress = subjectSessions.isEmpty ? 0.0 : 
-        subjectSessions.where((s) => s.actualDuration >= s.targetDuration).length / subjectSessions.length;
+      // Calculate all-time progress based on completed vs total sessions for this subject
+      final subjectSessions = _allSessions.where((s) => s.subjectId == subject.id).toList();
+      print('   - ${subject.name}: ${subjectSessions.length} sessions');
+      
+      double progress;
+      if (subjectSessions.isEmpty) {
+        progress = 0.0;
+      } else {
+        final completedSessions = subjectSessions.where((s) => s.actualDuration >= s.targetDuration).length;
+        progress = completedSessions / subjectSessions.length;
+      }
       
       final color = Color(int.parse(subject.color.replaceFirst('#', '0xff')));
       
       bars.add(_buildProgressBar(subject.name, progress, color));
-      if (i < _subjects.take(3).length - 1) {
+      if (i < _subjects.take(5).length - 1) {
         bars.add(const SizedBox(height: AppStyles.spaceSM));
       }
     }
@@ -876,10 +944,10 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
   }
   
   List<Widget> _buildTodaySchedule() {
-    if (_todayEvents.isEmpty) {
+    if (_upcomingEvents.isEmpty) {
       return [
         Text(
-          'No events scheduled for today. Add events in the Calendar.',
+          'No events found. Add events in the Calendar to see them here.',
           style: AppStyles.bodySmall.copyWith(
             color: context.mutedForeground,
           ),
@@ -888,9 +956,12 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
     }
     
     List<Widget> scheduleItems = [];
-    final sortedEvents = _todayEvents.toList()..sort((a, b) => a.startTime.compareTo(b.startTime));
+    // Sort events by start time (chronological order - newest first)
+    final sortedEvents = _upcomingEvents.toList()..sort((a, b) => b.startTime.compareTo(a.startTime));
+    print('📅 Displaying ${sortedEvents.length} events (sorted by date)');
     
-    for (final event in sortedEvents.take(4)) {
+    // Show more events (up to 6 instead of 4)
+    for (final event in sortedEvents.take(6)) {
       // Find subject by ID, or create a default one if not found
       Subject? subject;
       try {
@@ -925,6 +996,8 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
   }
   
   String _getStudyTip() {
+    print('🔍 Getting study tip - Sessions: ${_allSessions.length}, Study time: ${_totalStudyTime.inMinutes}min, Streak: $_currentStreak');
+    
     if (_blockingSettings?.isEnabled == true) {
       final blockedCount = _blockingSettings?.blockedApps.length ?? 0;
       return 'App blocking is active with $blockedCount apps blocked. Stay focused!';
@@ -934,25 +1007,76 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
       return 'Amazing! You\'re on a $_currentStreak-day streak. Keep the momentum going!';
     }
     
-    if (_todayStudyTime.inMinutes < 25) {
-      return 'Start with a 25-minute focus session to build momentum for the day.';
+    if (_allSessions.isEmpty) {
+      return _subjects.isEmpty 
+        ? 'Welcome to SIGMA! Go to Planner to add your first subject, then start studying.'
+        : 'You have ${_subjects.length} subjects ready. Tap Start to begin your first study session!';
     }
     
-    if (_todaySessions.length >= 4) {
-      return 'Great progress! Consider taking a longer break to recharge.';
+    if (_totalStudyTime.inMinutes < 25) {
+      return 'Great start! Continue building your study habit with consistent sessions.';
     }
     
-    return 'You\'re on track! Consider taking a 15-minute break between sessions for optimal focus.';
+    if (_allSessions.length >= 10) {
+      return 'Excellent progress! You\'ve completed ${_allSessions.length} study sessions.';
+    }
+    
+    return 'You\'re making progress! Total study time: ${(_totalStudyTime.inHours > 0) ? "${_totalStudyTime.inHours}h ${_totalStudyTime.inMinutes % 60}m" : "${_totalStudyTime.inMinutes}m"}';
+  }
+  
+  Future<void> _testFirestoreConnection() async {
+    print('🔍 Testing Firestore database connection...');
+    
+    try {
+      final currentUserId = FirestoreService.currentUserId;
+      if (currentUserId == null) {
+        print('❌ No authenticated user!');
+        return;
+      }
+      
+      print('👤 User ID: $currentUserId');
+      
+      // Test connection
+      final canConnect = await EnhancedFirestoreService.testConnection();
+      print('🔍 Connection test: ${canConnect ? '✅ SUCCESS' : '❌ FAILED'}');
+      
+      if (!canConnect) return;
+      
+      // Test creating a subject
+      final testSubject = Subject(
+        id: const Uuid().v4(),
+        name: 'Test Subject ${DateTime.now().millisecondsSinceEpoch}',
+        color: '#2196F3',
+        description: 'Test subject from home screen',
+        userId: currentUserId,
+        createdAt: DateTime.now(),
+      );
+      
+      final saveSuccess = await EnhancedFirestoreService.saveSubject(testSubject);
+      print('💾 Save test: ${saveSuccess ? '✅ SUCCESS' : '❌ FAILED'}');
+      
+      // Test fetching data
+      final subjects = await EnhancedFirestoreService.getAllSubjects();
+      final tasks = await EnhancedFirestoreService.getAllTasks();
+      final sessions = await EnhancedFirestoreService.getAllStudySessions();
+      
+      print('📊 Fetch results:');
+      print('  📚 Subjects: ${subjects.length}');
+      print('  📋 Tasks: ${tasks.length}');
+      print('  📆 Sessions: ${sessions.length}');
+      
+      // Reload the UI data
+      await _loadRealData();
+      
+    } catch (e) {
+      print('❌ Database test error: $e');
+    }
   }
 
-  String _getMonthName(int month) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    return months[month - 1];
-  }
 
+
+  // Test Firestore Connection Method
+  
   // Schedule Item Helper - Shadcn Style
   Widget _buildScheduleItem(String time, String subject, String topic, Color color, {bool isBreak = false}) {
     return Padding(

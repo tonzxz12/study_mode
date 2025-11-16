@@ -5,9 +5,9 @@ import 'package:flutter/services.dart';
 import '../../core/theme/styles.dart';
 import '../../core/theme/theme_colors.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../data/services/data_sync_service.dart';
 import '../../data/models/study_session.dart';
 import '../../core/services/firestore_service.dart';
+import '../../core/services/enhanced_firestore_service.dart';
 import '../../data/services/calendar_service.dart';
 import '../../data/models/calendar_event.dart';
 import '../../data/models/subject.dart';
@@ -20,7 +20,7 @@ import '../../core/widgets/responsive_dialog.dart';
 
 import '../../core/services/app_blocking_service.dart';
 import '../../data/services/app_blocking_settings_service.dart';
-import 'package:usage_stats/usage_stats.dart';
+// import 'package:usage_stats/usage_stats.dart';  // Temporarily disabled
 import '../../core/migration/user_id_migration.dart';
 
 class TimerScreen extends StatefulWidget {
@@ -65,7 +65,8 @@ class _TimerScreenState extends State<TimerScreen> {
   // App blocking
   bool _appBlockingEnabled = false;
   List<String> _selectedBlockedApps = [];
-  List<UsageInfo> _installedApps = [];
+  // List<UsageInfo> _installedApps = [];  // Temporarily disabled
+  List<dynamic> _installedApps = [];  // Placeholder
 
   @override
   void initState() {
@@ -194,20 +195,24 @@ class _TimerScreenState extends State<TimerScreen> {
 
   Future<void> _loadInstalledApps() async {
     try {
-      if (await AppBlockingService.hasUsagePermission()) {
-        final now = DateTime.now();
-        final yesterday = now.subtract(const Duration(days: 1));
-        final usageStats = await UsageStats.queryUsageStats(yesterday, now);
-        
-        setState(() {
-          _installedApps = usageStats.where((app) => 
-            app.packageName != null && 
-            app.packageName!.isNotEmpty &&
-            !app.packageName!.startsWith('com.android.') &&
-            !app.packageName!.startsWith('com.google.android.')
-          ).toList();
-        });
-      }
+      // Temporarily disabled usage_stats functionality
+      // if (await AppBlockingService.hasUsagePermission()) {
+      //   final now = DateTime.now();
+      //   final yesterday = now.subtract(const Duration(days: 1));
+      //   final usageStats = await UsageStats.queryUsageStats(yesterday, now);
+      //   
+      //   setState(() {
+      //     _installedApps = usageStats.where((app) => 
+      //       app.packageName != null && 
+      //       app.packageName!.isNotEmpty &&
+      //       !app.packageName!.startsWith('com.android.') &&
+      //       !app.packageName!.startsWith('com.google.android.')
+      //     ).toList();
+      //   });
+      
+      setState(() {
+        _installedApps = [];  // Temporarily empty
+      });
     } catch (e) {
       print('Error loading installed apps: $e');
     }
@@ -287,8 +292,8 @@ class _TimerScreenState extends State<TimerScreen> {
       List<Task> tasks = [];
       
       try {
-        subjects = await DataSyncService.getAllSubjects();
-        tasks = await DataSyncService.getAllTasks();
+        subjects = await EnhancedFirestoreService.getAllSubjects();
+        tasks = await EnhancedFirestoreService.getAllTasks();
         print('📚 Loaded ${subjects.length} subjects and ${tasks.length} tasks');
       } catch (e) {
         print('⚠️ Error loading subjects/tasks: $e');
@@ -396,8 +401,8 @@ class _TimerScreenState extends State<TimerScreen> {
       availableSchedules.sort((a, b) => a.startTime.compareTo(b.startTime));
       
       // Load subjects and tasks
-      final subjects = await DataSyncService.getAllSubjects();
-      final tasks = await DataSyncService.getAllTasks();
+      final subjects = await EnhancedFirestoreService.getAllSubjects();
+      final tasks = await EnhancedFirestoreService.getAllTasks();
       
       if (mounted) {
         setState(() {
@@ -456,7 +461,7 @@ class _TimerScreenState extends State<TimerScreen> {
       // Try to get subjects, but don't fail if database has issues
       String subjectId = 'general';
       try {
-        final subjects = await DataSyncService.getAllSubjects();
+        final subjects = await EnhancedFirestoreService.getAllSubjects();
         if (subjects.isNotEmpty) {
           final matchingSubject = subjects.where(
             (s) => sessionTitle.toLowerCase().contains(s.name.toLowerCase())
@@ -501,7 +506,7 @@ class _TimerScreenState extends State<TimerScreen> {
         // Create completed session with actual time data
         // Stop app blocking if it was enabled
         if (_appBlockingEnabled && _selectedBlockedApps.isNotEmpty) {
-          await AppBlockingService.stopMonitoring();
+          // await AppBlockingService.stopMonitoring();  // Temporarily disabled
           print('📱 App blocking stopped');
         }
 
@@ -523,7 +528,8 @@ class _TimerScreenState extends State<TimerScreen> {
 
         // Try to save to Firestore
         try {
-          await DataSyncService.saveStudySession(completedSession);
+          final success = await EnhancedFirestoreService.saveStudySession(completedSession);
+          if (!success) print('⚠️ Failed to save session to online database');
           print('✅ Session saved to database: "${completedSession.title}"');
           print('📊 Actual study time: ${actualDuration.inMinutes} minutes ${actualDuration.inSeconds % 60} seconds');
         } catch (e) {
@@ -619,7 +625,7 @@ class _TimerScreenState extends State<TimerScreen> {
   Future<String> _getCompletionTimeText(CalendarEvent event) async {
     try {
       // Get all study sessions for this user
-      final allSessions = await DataSyncService.getAllStudySessions();
+      final allSessions = await EnhancedFirestoreService.getAllStudySessions();
       
       // Find all study sessions associated with this calendar event
       final associatedSessions = allSessions.where((session) {

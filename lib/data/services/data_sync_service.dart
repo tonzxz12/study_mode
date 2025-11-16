@@ -91,10 +91,35 @@ class DataSyncService {
     await initialize();
     
     try {
-      return _subjectsBox!.values.toList();
+      // First, try to load from Firestore (online database)
+      debugPrint('📱 Loading subjects from online database (Firestore)...');
+      final firestoreSubjects = await EnhancedFirestoreService.getAllSubjects();
+      
+      if (firestoreSubjects.isNotEmpty) {
+        debugPrint('✅ Loaded ${firestoreSubjects.length} subjects from Firestore');
+        // Update local storage with fresh data from Firestore
+        for (final subject in firestoreSubjects) {
+          await _subjectsBox!.put(subject.id, subject);
+        }
+        return firestoreSubjects;
+      } else {
+        debugPrint('📦 No subjects found in Firestore, checking local storage...');
+      }
+      
+      // Fallback to local storage if Firestore is empty or fails
+      final localSubjects = _subjectsBox!.values.toList();
+      debugPrint('📦 Loaded ${localSubjects.length} subjects from local storage');
+      return localSubjects;
     } catch (e) {
-      debugPrint('❌ Error getting subjects: $e');
-      return [];
+      debugPrint('❌ Error loading subjects from Firestore, trying local: $e');
+      try {
+        final localSubjects = _subjectsBox!.values.toList();
+        debugPrint('📦 Fallback: Loaded ${localSubjects.length} subjects from local storage');
+        return localSubjects;
+      } catch (localError) {
+        debugPrint('❌ Error getting subjects from local storage too: $localError');
+        return [];
+      }
     }
   }
 
@@ -191,10 +216,35 @@ class DataSyncService {
     await initialize();
     
     try {
-      return _sessionsBox!.values.toList();
+      // First, try to load from Firestore (online database)
+      debugPrint('📱 Loading study sessions from online database (Firestore)...');
+      final firestoreSessions = await EnhancedFirestoreService.getAllStudySessions();
+      
+      if (firestoreSessions.isNotEmpty) {
+        debugPrint('✅ Loaded ${firestoreSessions.length} sessions from Firestore');
+        // Update local storage with fresh data from Firestore
+        for (final session in firestoreSessions) {
+          await _sessionsBox!.put(session.id, session);
+        }
+        return firestoreSessions;
+      } else {
+        debugPrint('📦 No sessions found in Firestore, checking local storage...');
+      }
+      
+      // Fallback to local storage if Firestore is empty or fails
+      final localSessions = _sessionsBox!.values.toList();
+      debugPrint('📦 Loaded ${localSessions.length} sessions from local storage');
+      return localSessions;
     } catch (e) {
-      debugPrint('❌ Error getting study sessions: $e');
-      return [];
+      debugPrint('❌ Error loading sessions from Firestore, trying local: $e');
+      try {
+        final localSessions = _sessionsBox!.values.toList();
+        debugPrint('📦 Fallback: Loaded ${localSessions.length} sessions from local storage');
+        return localSessions;
+      } catch (localError) {
+        debugPrint('❌ Error getting sessions from local storage too: $localError');
+        return [];
+      }
     }
   }
 
@@ -253,10 +303,35 @@ class DataSyncService {
     await initialize();
     
     try {
-      return _tasksBox!.values.toList();
+      // First, try to load from Firestore (online database)
+      debugPrint('📱 Loading tasks from online database (Firestore)...');
+      final firestoreTasks = await EnhancedFirestoreService.getAllTasks();
+      
+      if (firestoreTasks.isNotEmpty) {
+        debugPrint('✅ Loaded ${firestoreTasks.length} tasks from Firestore');
+        // Update local storage with fresh data from Firestore
+        for (final task in firestoreTasks) {
+          await _tasksBox!.put(task.id, task);
+        }
+        return firestoreTasks;
+      } else {
+        debugPrint('📦 No tasks found in Firestore, checking local storage...');
+      }
+      
+      // Fallback to local storage if Firestore is empty or fails
+      final localTasks = _tasksBox!.values.toList();
+      debugPrint('📦 Loaded ${localTasks.length} tasks from local storage');
+      return localTasks;
     } catch (e) {
-      debugPrint('❌ Error getting tasks: $e');
-      return [];
+      debugPrint('❌ Error loading tasks from Firestore, trying local: $e');
+      try {
+        final localTasks = _tasksBox!.values.toList();
+        debugPrint('📦 Fallback: Loaded ${localTasks.length} tasks from local storage');
+        return localTasks;
+      } catch (localError) {
+        debugPrint('❌ Error getting tasks from local storage too: $localError');
+        return [];
+      }
     }
   }
 

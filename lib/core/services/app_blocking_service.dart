@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:usage_stats/usage_stats.dart';
+// import 'package:usage_stats/usage_stats.dart';  // Temporarily disabled
 import 'package:system_alert_window/system_alert_window.dart';
 // import 'package:flutter_background_service/flutter_background_service.dart'; // DISABLED
-import 'package:android_intent_plus/android_intent.dart';
-import 'package:permission_handler/permission_handler.dart';
+// import 'package:android_intent_plus/android_intent.dart';  // Temporarily disabled
+// import 'package:permission_handler/permission_handler.dart';  // Temporarily disabled
 
 @pragma('vm:entry-point')
 class AppBlockingService {
@@ -49,12 +49,13 @@ class AppBlockingService {
   // Check if device has usage access permission
   static Future<bool> hasUsagePermission() async {
     try {
-      // Try to query usage stats to check permission
-      DateTime now = DateTime.now();
-      DateTime start = now.subtract(const Duration(minutes: 5));
+      // Temporarily disabled usage_stats functionality
+      // DateTime now = DateTime.now();
+      // DateTime start = now.subtract(const Duration(minutes: 5));
+      // List<UsageInfo> stats = await UsageStats.queryUsageStats(start, now);
+      // return stats.isNotEmpty;
       
-      List<UsageInfo> stats = await UsageStats.queryUsageStats(start, now);
-      return stats.isNotEmpty;
+      return false;  // Always return false when usage_stats is disabled
     } catch (e) {
       print('Usage stats error (likely no permission): $e');
       return false;
@@ -63,7 +64,7 @@ class AppBlockingService {
 
   // Request usage access permission
   static Future<void> requestUsagePermission() async {
-    await UsageStats.grantUsagePermission();
+    // await UsageStats.grantUsagePermission();  // Temporarily disabled
   }
 
   // Storage keys
@@ -301,82 +302,79 @@ class AppBlockingService {
     if (!_isMonitoring || _blockedPackages.isEmpty) return;
     
     try {
-      DateTime now = DateTime.now();
+      // Temporarily disabled usage_stats functionality
+      // DateTime now = DateTime.now();
+      // DateTime startTime = now.subtract(const Duration(seconds: 2));
+      // List<UsageInfo> usageInfos = await UsageStats.queryUsageStats(startTime, now);
+
+      // for (UsageInfo usage in usageInfos) {
+      //   if (_blockedPackages.contains(usage.packageName) && 
+      //       usage.lastTimeUsed != null) {
+      //     
+      //     int lastUsedMillis = int.tryParse(usage.lastTimeUsed!) ?? 0;
+      //     DateTime lastUsedTime = DateTime.fromMillisecondsSinceEpoch(lastUsedMillis);
+      //     
+      //     if (now.difference(lastUsedTime).inSeconds < 2) {
+      //       DateTime? lastBlocked = _lastBlockedTime[usage.packageName!];
+      //       if (lastBlocked == null || now.difference(lastBlocked).inMilliseconds >= 30) {
+      //         String appName = _getAppNameFromPackage(usage.packageName!);
+      //         print('🚫🚫🚫 CONTINUOUS BLOCKING: $appName - ALWAYS BLOCKED!');
+      //         _lastBlockedTime[usage.packageName!] = now;
+      //         
+      //         await _performContinuousBlocking(usage.packageName!);
+      //         print('⚡ $appName continuously blocked - Study Mode enforced');
+      //       }
+      //     }
+      //   }
+      // }
       
-      // Check very recent usage (last 2 seconds) for immediate detection
-      DateTime startTime = now.subtract(const Duration(seconds: 2));
-      List<UsageInfo> usageInfos = await UsageStats.queryUsageStats(startTime, now);
-      
-      for (UsageInfo usage in usageInfos) {
-        if (_blockedPackages.contains(usage.packageName) && 
-            usage.lastTimeUsed != null) {
-          
-          int lastUsedMillis = int.tryParse(usage.lastTimeUsed!) ?? 0;
-          DateTime lastUsedTime = DateTime.fromMillisecondsSinceEpoch(lastUsedMillis);
-          
-          // CONTINUOUS BLOCKING - ALWAYS block, very short cooldown to prevent spam only
-          if (now.difference(lastUsedTime).inSeconds < 2) {
-            DateTime? lastBlocked = _lastBlockedTime[usage.packageName!];
-            // Ultra-short 30ms cooldown to allow continuous re-blocking but prevent excessive calls
-            if (lastBlocked == null || now.difference(lastBlocked).inMilliseconds >= 30) {
-              String appName = _getAppNameFromPackage(usage.packageName!);
-              print('🚫🚫🚫 CONTINUOUS BLOCKING: $appName - ALWAYS BLOCKED!');
-              _lastBlockedTime[usage.packageName!] = now;
-              
-              // Perform continuous blocking with persistent focus
-              await _performContinuousBlocking(usage.packageName!);
-              print('⚡ $appName continuously blocked - Study Mode enforced');
-            }
-          }
-        }
-      }
+      print('App blocking temporarily disabled');
     } catch (e) {
       print('❌ Error in continuous monitoring: $e');
-      // Don't stop monitoring even if there's an error - keep protecting!
     }
   }
 
-  // CONTINUOUS persistent blocking - close app and FORCE Study Mode to stay
-  static Future<void> _performContinuousBlocking(String packageName) async {
-    try {
-      String appName = _getAppNameFromPackage(packageName);
-      
-      // Step 1: IMMEDIATELY close blocked app multiple times
-      for (int i = 0; i < 2; i++) {
-        try {
-          await _channel.invokeMethod('killApp', {'packageName': packageName});
-        } catch (e) {
-          // Continue even if native method fails
-        }
-        if (i == 0) await Future.delayed(const Duration(milliseconds: 50));
-      }
-      
-      // Step 2: Force Study Mode to foreground
-      try {
-        await _channel.invokeMethod('bringAppToForeground');
-      } catch (e) {
-        // Fallback to Android Intent
-        try {
-          const studyModeIntent = AndroidIntent(
-            action: 'android.intent.action.MAIN',
-            package: 'com.studymode.app.study_mode_v2',
-            flags: <int>[
-              0x10000000, // FLAG_ACTIVITY_NEW_TASK
-              0x20000000, // FLAG_ACTIVITY_SINGLE_TOP
-            ],
-          );
-          await studyModeIntent.launch();
-        } catch (intentError) {
-          // Continue monitoring even if intents fail
-        }
-      }
-      
-      print('✅ $appName continuously blocked - Study Mode maintained');
-    } catch (e) {
-      print('❌ Continuous blocking error: $e');
-      // Continue monitoring regardless of errors
-    }
-  }
+  // CONTINUOUS persistent blocking - TEMPORARILY DISABLED
+  // static Future<void> _performContinuousBlocking(String packageName) async {
+  //   try {
+  //     String appName = _getAppNameFromPackage(packageName);
+  //     
+  //     // Step 1: IMMEDIATELY close blocked app multiple times
+  //     for (int i = 0; i < 2; i++) {
+  //       try {
+  //         await _channel.invokeMethod('killApp', {'packageName': packageName});
+  //       } catch (e) {
+  //         // Continue even if native method fails
+  //       }
+  //       if (i == 0) await Future.delayed(const Duration(milliseconds: 50));
+  //     }
+  //     
+  //     // Step 2: Force Study Mode to foreground
+  //     try {
+  //       await _channel.invokeMethod('bringAppToForeground');
+  //     } catch (e) {
+  //       // Fallback to Android Intent
+  //       try {
+  //         const studyModeIntent = AndroidIntent(
+  //           action: 'android.intent.action.MAIN',
+  //           package: 'com.studymode.app.study_mode_v2',
+  //           flags: <int>[
+  //             0x10000000, // FLAG_ACTIVITY_NEW_TASK
+  //             0x20000000, // FLAG_ACTIVITY_SINGLE_TOP
+  //           ],
+  //         );
+  //         await studyModeIntent.launch();
+  //       } catch (intentError) {
+  //         // Continue monitoring even if intents fail
+  //       }
+  //     }
+  //     
+  //     print('✅ $appName continuously blocked - Study Mode maintained');
+  //   } catch (e) {
+  //     print('❌ Continuous blocking error: $e');
+  //     // Continue monitoring regardless of errors
+  //   }
+  // }
 
   // Stop monitoring
   static Future<void> stopMonitoring() async {
@@ -399,23 +397,23 @@ class AppBlockingService {
     }
   }
 
-  // Helper method to get friendly app names
-  static String _getAppNameFromPackage(String packageName) {
-    const Map<String, String> appNames = {
-      'com.instagram.android': 'Instagram',
-      'com.facebook.katana': 'Facebook', 
-      'com.twitter.android': 'Twitter',
-      'com.snapchat.android': 'Snapchat',
-      'com.zhiliaoapp.musically': 'TikTok',
-      'com.whatsapp': 'WhatsApp',
-      'com.discord': 'Discord',
-      'com.netflix.mediaclient': 'Netflix',
-      'com.spotify.music': 'Spotify',
-      'com.google.android.youtube': 'YouTube',
-    };
-    
-    return appNames[packageName] ?? 'This app';
-  }
+  // Helper method to get friendly app names - TEMPORARILY DISABLED
+  // static String _getAppNameFromPackage(String packageName) {
+  //   const Map<String, String> appNames = {
+  //     'com.instagram.android': 'Instagram',
+  //     'com.facebook.katana': 'Facebook', 
+  //     'com.twitter.android': 'Twitter',
+  //     'com.snapchat.android': 'Snapchat',
+  //     'com.zhiliaoapp.musically': 'TikTok',
+  //     'com.whatsapp': 'WhatsApp',
+  //     'com.discord': 'Discord',
+  //     'com.netflix.mediaclient': 'Netflix',
+  //     'com.spotify.music': 'Spotify',
+  //     'com.google.android.youtube': 'YouTube',
+  //   };
+  //   
+  //   return appNames[packageName] ?? 'This app';
+  // }
 
   // Background service entry point - DISABLED
   // @pragma('vm:entry-point')

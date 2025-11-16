@@ -3,9 +3,9 @@ import 'package:uuid/uuid.dart';
 import '../../core/theme/styles.dart';
 import '../../core/theme/theme_colors.dart';
 import '../../core/services/firestore_service.dart';
+import '../../core/services/enhanced_firestore_service.dart';
 
 import '../../data/services/calendar_service.dart';
-import '../../data/services/data_sync_service.dart';
 
 import '../../data/models/calendar_event.dart';
 import '../../data/models/subject.dart';
@@ -69,8 +69,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   Future<void> _loadSubjectsAndTasks() async {
     try {
-      final subjects = await DataSyncService.getAllSubjects();
-      final tasks = await DataSyncService.getAllTasks();
+      final subjects = await EnhancedFirestoreService.getAllSubjects();
+      final tasks = await EnhancedFirestoreService.getAllTasks();
+      print('📱 Calendar: Loaded ${subjects.length} subjects and ${tasks.length} tasks from online database');
       
       setState(() {
         _subjects = subjects;

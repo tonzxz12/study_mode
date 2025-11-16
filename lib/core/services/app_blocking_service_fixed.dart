@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:usage_stats/usage_stats.dart';
+// import 'package:usage_stats/usage_stats.dart';  // Temporarily disabled
 import 'package:system_alert_window/system_alert_window.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:android_intent_plus/android_intent.dart';
