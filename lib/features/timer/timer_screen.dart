@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/styles.dart';
+import '../../core/theme/theme_colors.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/services/data_sync_service.dart';
 import '../../data/models/study_session.dart';
@@ -540,7 +541,7 @@ class _TimerScreenState extends State<TimerScreen> {
             content: Text(
               'Session completed! Studied for ${actualDuration.inMinutes}m ${actualDuration.inSeconds % 60}s'
             ),
-            backgroundColor: Colors.green,
+            backgroundColor: context.success,
             duration: const Duration(seconds: 4),
           ),
         );
@@ -564,7 +565,7 @@ class _TimerScreenState extends State<TimerScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Session completed but could not save: $e'),
-            backgroundColor: Colors.orange,
+            backgroundColor: context.warning,
             duration: const Duration(seconds: 3),
           ),
         );
@@ -720,7 +721,7 @@ class _TimerScreenState extends State<TimerScreen> {
             Text(
               'Schedule Required',
               style: AppStyles.subsectionHeader.copyWith(
-                color: AppStyles.foreground,
+                color: context.foreground,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -733,7 +734,7 @@ class _TimerScreenState extends State<TimerScreen> {
             Text(
               'Please select a schedule from your calendar before starting the timer.',
               style: AppStyles.bodyMedium.copyWith(
-                color: AppStyles.foreground,
+                color: context.foreground,
                 height: 1.5,
               ),
             ),
@@ -741,10 +742,10 @@ class _TimerScreenState extends State<TimerScreen> {
             Container(
               padding: const EdgeInsets.all(AppStyles.spaceMD),
               decoration: BoxDecoration(
-                color: AppStyles.warning.withOpacity(0.1),
+                color: context.warning.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(AppStyles.radiusSM),
                 border: Border.all(
-                  color: AppStyles.warning.withOpacity(0.3),
+                  color: context.warning.withOpacity(0.3),
                 ),
               ),
               child: Row(
@@ -775,7 +776,7 @@ class _TimerScreenState extends State<TimerScreen> {
             child: Text(
               'OK',
               style: TextStyle(
-                color: AppStyles.primary,
+                color: context.primary,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -806,7 +807,7 @@ class _TimerScreenState extends State<TimerScreen> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppStyles.success,
-              foregroundColor: Colors.white,
+              foregroundColor: context.primaryForeground,
             ),
             child: const Text('Finish'),
           ),
@@ -907,7 +908,7 @@ class _TimerScreenState extends State<TimerScreen> {
             ),
           ],
         ),
-        backgroundColor: _isStudyTime ? AppStyles.success : AppStyles.primary,
+        backgroundColor: _isStudyTime ? context.success : context.primary,
         duration: const Duration(seconds: 4),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
@@ -929,7 +930,7 @@ class _TimerScreenState extends State<TimerScreen> {
           children: [
             Icon(
               _isStudyTime ? Icons.celebration_rounded : Icons.psychology_rounded,
-              color: _isStudyTime ? AppStyles.success : AppStyles.primary,
+              color: _isStudyTime ? context.success : context.primary,
               size: 28,
             ),
             const SizedBox(width: 12),
@@ -961,7 +962,7 @@ class _TimerScreenState extends State<TimerScreen> {
               _startTimer(); // Auto-start next session
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: _isStudyTime ? AppStyles.warning : AppStyles.primary,
+              backgroundColor: _isStudyTime ? context.warning : context.primary,
             ),
             child: Text(_isStudyTime ? 'Start Break' : 'Start Focus'),
           ),
@@ -981,23 +982,9 @@ class _TimerScreenState extends State<TimerScreen> {
     double progress = _initialSeconds > 0 ? (_initialSeconds - _currentSeconds) / _initialSeconds : 0;
     
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: context.background,
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              _isStudyTime 
-                  ? AppStyles.primary.withOpacity(0.08)
-                  : AppStyles.warning.withOpacity(0.08),
-              AppStyles.background,
-              _isStudyTime 
-                  ? AppStyles.primary.withOpacity(0.02)
-                  : AppStyles.warning.withOpacity(0.02),
-            ],
-          ),
-        ),
+        color: context.background,
         child: SafeArea(
           bottom: false,
           child: Stack(
@@ -1021,7 +1008,7 @@ class _TimerScreenState extends State<TimerScreen> {
                             _completedPomodoros.toString(),
                             'Sessions',
                             Icons.check_circle_rounded,
-                            AppStyles.success,
+                            context.success,
                           ),
                         ),
                         const SizedBox(width: AppStyles.spaceMD),
@@ -1051,21 +1038,13 @@ class _TimerScreenState extends State<TimerScreen> {
                       height: context.timerCircleSize,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: (_isStudyTime && _selectedCalendarSession == null && !_isRunning) ? [
-                            AppStyles.muted.withOpacity(0.3),
-                            AppStyles.muted.withOpacity(0.1),
-                          ] : [
-                            AppStyles.card,
-                            AppStyles.card.withOpacity(0.7),
-                          ],
-                        ),
+                        color: (_isStudyTime && _selectedCalendarSession == null && !_isRunning) 
+                          ? context.muted.withOpacity(0.3)
+                          : context.card,
                         border: Border.all(
                           color: (_isStudyTime && _selectedCalendarSession == null && !_isRunning) 
                             ? AppStyles.muted.withOpacity(0.2)
-                            : AppStyles.border.withOpacity(0.3),
+                            : context.border.withOpacity(0.3),
                           width: 3,
                         ),
                         boxShadow: [
@@ -1080,7 +1059,7 @@ class _TimerScreenState extends State<TimerScreen> {
                             offset: const Offset(0, 8),
                           ),
                           BoxShadow(
-                            color: (_isStudyTime ? AppStyles.primary : AppStyles.warning).withOpacity(0.15),
+                            color: (_isStudyTime ? context.primary : context.warning).withOpacity(0.15),
                             blurRadius: 32,
                             offset: const Offset(0, 0),
                           ),
@@ -1098,7 +1077,7 @@ class _TimerScreenState extends State<TimerScreen> {
                               strokeWidth: 10,
                               backgroundColor: AppStyles.muted.withOpacity(0.2),
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                _isStudyTime ? AppStyles.primary : AppStyles.warning,
+                                _isStudyTime ? context.primary : context.warning,
                               ),
                               strokeCap: StrokeCap.round,
                             ),
@@ -1115,8 +1094,8 @@ class _TimerScreenState extends State<TimerScreen> {
                                   height: 1.0,
                                   letterSpacing: -3,
                                   color: (_isStudyTime && _selectedCalendarSession == null && !_isRunning)
-                                    ? AppStyles.mutedForeground
-                                    : AppStyles.foreground,
+                                    ? context.mutedForeground
+                                    : context.foreground,
                                 ),
                               ),
                               const SizedBox(height: AppStyles.spaceMD),
@@ -1126,20 +1105,15 @@ class _TimerScreenState extends State<TimerScreen> {
                                   vertical: AppStyles.spaceSM,
                                 ),
                                 decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      (_isStudyTime ? AppStyles.primary : AppStyles.warning).withOpacity(0.15),
-                                      (_isStudyTime ? AppStyles.primary : AppStyles.warning).withOpacity(0.05),
-                                    ],
-                                  ),
+                                  color: (_isStudyTime ? context.primary : context.warning).withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(24),
                                   border: Border.all(
-                                    color: (_isStudyTime ? AppStyles.primary : AppStyles.warning).withOpacity(0.3),
+                                    color: (_isStudyTime ? context.primary : context.warning).withOpacity(0.3),
                                     width: 1.5,
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: (_isStudyTime ? AppStyles.primary : AppStyles.warning).withOpacity(0.1),
+                                      color: (_isStudyTime ? context.primary : context.warning).withOpacity(0.1),
                                       blurRadius: 8,
                                       offset: const Offset(0, 2),
                                     ),
@@ -1150,14 +1124,14 @@ class _TimerScreenState extends State<TimerScreen> {
                                   children: [
                                     Icon(
                                       _isStudyTime ? Icons.psychology_rounded : Icons.coffee_rounded,
-                                      color: _isStudyTime ? AppStyles.primary : AppStyles.warning,
+                                      color: _isStudyTime ? context.primary : context.warning,
                                       size: 16,
                                     ),
                                     const SizedBox(width: AppStyles.spaceXS),
                                     Text(
                                       _isStudyTime ? 'Focus Mode' : 'Break Mode',
                                       style: AppStyles.bodyMedium.copyWith(
-                                        color: _isStudyTime ? AppStyles.primary : AppStyles.warning,
+                                        color: _isStudyTime ? context.primary : context.warning,
                                         fontWeight: FontWeight.w700,
                                         fontSize: 16,
                                       ),
@@ -1173,15 +1147,10 @@ class _TimerScreenState extends State<TimerScreen> {
                                     vertical: AppStyles.spaceXS,
                                   ),
                                   decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        AppStyles.destructive.withOpacity(0.15),
-                                        AppStyles.destructive.withOpacity(0.05),
-                                      ],
-                                    ),
+                                    color: context.destructive.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(20),
                                     border: Border.all(
-                                      color: AppStyles.destructive.withOpacity(0.3),
+                                      color: context.destructive.withOpacity(0.3),
                                       width: 1,
                                     ),
                                   ),
@@ -1197,7 +1166,7 @@ class _TimerScreenState extends State<TimerScreen> {
                                       Text(
                                         '${_selectedBlockedApps.length} apps blocked',
                                         style: AppStyles.bodySmall.copyWith(
-                                          color: AppStyles.destructive,
+                                          color: context.destructive,
                                           fontWeight: FontWeight.w600,
                                           fontSize: 12,
                                         ),
@@ -1225,9 +1194,9 @@ class _TimerScreenState extends State<TimerScreen> {
                             _buildControlButton(
                               onPressed: _resetTimer,
                               icon: Icons.refresh_rounded,
-                              backgroundColor: AppStyles.card,
-                              foregroundColor: AppStyles.mutedForeground,
-                              borderColor: AppStyles.border,
+                              backgroundColor: context.card,
+                              foregroundColor: context.mutedForeground,
+                              borderColor: context.border,
                             ),
                             
                             const SizedBox(width: AppStyles.spaceXL),
@@ -1237,11 +1206,11 @@ class _TimerScreenState extends State<TimerScreen> {
                               onPressed: _isRunning ? _pauseTimer : _startTimer,
                               icon: _isRunning ? Icons.pause_rounded : Icons.play_arrow_rounded,
                               backgroundColor: (_isStudyTime && _selectedCalendarSession == null && !_isRunning)
-                                ? AppStyles.muted
-                                : (_isStudyTime ? AppStyles.primary : AppStyles.warning),
+                                ? context.muted
+                                : (_isStudyTime ? context.primary : context.warning),
                               foregroundColor: (_isStudyTime && _selectedCalendarSession == null && !_isRunning)
-                                ? AppStyles.mutedForeground
-                                : Colors.white,
+                                ? context.mutedForeground
+                                : context.primaryForeground,
                               isLarge: true,
                             ),
                           ],
@@ -1258,14 +1227,14 @@ class _TimerScreenState extends State<TimerScreen> {
                               onPressed: (_isRunning && _isStudyTime) ? _finishSession : () {},
                               icon: Icons.check_rounded,
                               backgroundColor: (_isRunning && _isStudyTime) 
-                                  ? AppStyles.success 
-                                  : AppStyles.card.withOpacity(0.5),
+                                  ? context.success 
+                                  : context.card.withOpacity(0.5),
                               foregroundColor: (_isRunning && _isStudyTime) 
-                                  ? Colors.white 
-                                  : AppStyles.mutedForeground.withOpacity(0.5),
+                                  ? context.primaryForeground 
+                                  : context.mutedForeground.withOpacity(0.5),
                               borderColor: (_isRunning && _isStudyTime) 
-                                  ? AppStyles.success 
-                                  : AppStyles.border.withOpacity(0.5),
+                                  ? context.success 
+                                  : context.border.withOpacity(0.5),
                             ),
                             
                             const SizedBox(width: AppStyles.spaceXL),
@@ -1274,9 +1243,9 @@ class _TimerScreenState extends State<TimerScreen> {
                             _buildControlButton(
                               onPressed: _showTimerSettings,
                               icon: Icons.settings_rounded,
-                              backgroundColor: AppStyles.card,
-                              foregroundColor: AppStyles.mutedForeground,
-                              borderColor: AppStyles.border,
+                              backgroundColor: context.card,
+                              foregroundColor: context.mutedForeground,
+                              borderColor: context.border,
                             ),
                           ],
                         ),
@@ -1294,10 +1263,10 @@ class _TimerScreenState extends State<TimerScreen> {
                 left: AppStyles.spaceXL,
                 child: Container(
                   decoration: BoxDecoration(
-                    color: AppStyles.card.withOpacity(0.9),
+                    color: context.card.withOpacity(0.9),
                     borderRadius: BorderRadius.circular(AppStyles.radiusMD),
                     border: Border.all(
-                      color: AppStyles.border.withOpacity(0.6),
+                      color: context.border.withOpacity(0.6),
                       width: 1,
                     ),
                     boxShadow: [
@@ -1317,7 +1286,7 @@ class _TimerScreenState extends State<TimerScreen> {
                     onPressed: () => Navigator.pop(context),
                     icon: Icon(
                       Icons.arrow_back_rounded,
-                      color: AppStyles.foreground,
+                      color: context.foreground,
                       size: 22,
                     ),
                     constraints: const BoxConstraints(
@@ -1338,17 +1307,10 @@ class _TimerScreenState extends State<TimerScreen> {
     return Container(
       padding: const EdgeInsets.all(AppStyles.spaceLG),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppStyles.card,
-            AppStyles.card.withOpacity(0.8),
-          ],
-        ),
+        color: context.card,
         borderRadius: BorderRadius.circular(AppStyles.radiusLG),
         border: Border.all(
-          color: AppStyles.border.withOpacity(0.4),
+          color: context.border.withOpacity(0.4),
           width: 1.5,
         ),
         boxShadow: [
@@ -1375,7 +1337,7 @@ class _TimerScreenState extends State<TimerScreen> {
                 title,
                 style: AppStyles.bodyMedium.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: AppStyles.mutedForeground,
+                  color: context.mutedForeground,
                 ),
               ),
               Container(
@@ -1399,14 +1361,14 @@ class _TimerScreenState extends State<TimerScreen> {
               fontWeight: FontWeight.w800,
               height: 1.0,
               fontSize: 26,
-              color: AppStyles.foreground,
+              color: context.foreground,
             ),
           ),
           const SizedBox(height: AppStyles.spaceXS),
           Text(
             subtitle,
             style: AppStyles.bodySmall.copyWith(
-              color: AppStyles.mutedForeground,
+              color: context.mutedForeground,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -1427,15 +1389,7 @@ class _TimerScreenState extends State<TimerScreen> {
       width: isLarge ? 88 : 72,
       height: isLarge ? 88 : 72,
       decoration: BoxDecoration(
-        gradient: isLarge ? LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            backgroundColor,
-            backgroundColor.withOpacity(0.8),
-          ],
-        ) : null,
-        color: isLarge ? null : backgroundColor,
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(isLarge ? 44 : 36),
         border: borderColor != null ? Border.all(
           color: borderColor,
@@ -1505,7 +1459,7 @@ class _TimerScreenState extends State<TimerScreen> {
               _saveTimerSettings();
             },
             Icons.psychology_rounded,
-            AppStyles.primary,
+            context.primary,
           ),
 
           SizedBox(height: context.spacing(20)),
@@ -1537,15 +1491,15 @@ class _TimerScreenState extends State<TimerScreen> {
               SnackBar(
                 content: Row(
                   children: [
-                    const Icon(Icons.check_circle, color: Colors.white),
+                    Icon(Icons.check_circle, color: context.primaryForeground),
                     SizedBox(width: context.spacing(12)),
                     Text(
                       'Timer settings saved!',
-                      style: context.scaleTextStyle(AppStyles.bodyMedium.copyWith(color: Colors.white)),
+                      style: context.scaleTextStyle(AppStyles.bodyMedium.copyWith(color: context.primaryForeground)),
                     ),
                   ],
                 ),
-                backgroundColor: AppStyles.success,
+                backgroundColor: context.success,
                 behavior: SnackBarBehavior.floating,
                 margin: context.responsivePadding,
               ),
@@ -1573,16 +1527,10 @@ class _TimerScreenState extends State<TimerScreen> {
     return Container(
       padding: const EdgeInsets.all(AppStyles.spaceLG),
       decoration: BoxDecoration(
-        color: AppStyles.card,
+        color: context.card,
         borderRadius: BorderRadius.circular(AppStyles.radiusMD),
-        border: Border.all(color: AppStyles.border),
-        boxShadow: [
-          BoxShadow(
-            color: AppStyles.black.withOpacity(0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        border: Border.all(color: context.border),
+        boxShadow: context.shadowSM,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1592,12 +1540,12 @@ class _TimerScreenState extends State<TimerScreen> {
               Container(
                 padding: const EdgeInsets.all(AppStyles.spaceXS),
                 decoration: BoxDecoration(
-                  color: AppStyles.primary.withOpacity(0.1),
+                  color: context.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(AppStyles.radiusSM),
                 ),
                 child: Icon(
                   Icons.calendar_today_rounded,
-                  color: AppStyles.primary,
+                  color: context.primary,
                   size: 16,
                 ),
               ),
@@ -1607,7 +1555,7 @@ class _TimerScreenState extends State<TimerScreen> {
                   'Study Schedule',
                   style: AppStyles.bodyLarge.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: AppStyles.foreground,
+                    color: context.foreground,
                   ),
                 ),
               ),
@@ -1626,7 +1574,7 @@ class _TimerScreenState extends State<TimerScreen> {
                               height: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor: AlwaysStoppedAnimation<Color>(context.primaryForeground),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -1652,7 +1600,7 @@ class _TimerScreenState extends State<TimerScreen> {
                           ),
                           backgroundColor: _availableCalendarSessions.isEmpty 
                             ? AppStyles.warning 
-                            : AppStyles.success,
+                            : context.success,
                           duration: const Duration(seconds: 2),
                         ),
                       );
@@ -1663,7 +1611,7 @@ class _TimerScreenState extends State<TimerScreen> {
                     padding: const EdgeInsets.all(AppStyles.spaceXS),
                     child: Icon(
                       Icons.refresh_rounded,
-                      color: AppStyles.mutedForeground,
+                      color: context.mutedForeground,
                       size: 18,
                     ),
                   ),
@@ -1681,12 +1629,12 @@ class _TimerScreenState extends State<TimerScreen> {
               vertical: AppStyles.spaceSM,
             ),
             decoration: BoxDecoration(
-              color: AppStyles.background,
+              color: context.background,
               borderRadius: BorderRadius.circular(AppStyles.radiusMD),
               border: Border.all(
                 color: _selectedCalendarSession != null 
-                  ? AppStyles.primary.withOpacity(0.3)
-                  : AppStyles.border,
+                  ? context.primary.withOpacity(0.3)
+                  : context.border,
                 width: 1,
               ),
             ),
@@ -1698,14 +1646,14 @@ class _TimerScreenState extends State<TimerScreen> {
                   children: [
                     Icon(
                       Icons.schedule_rounded,
-                      color: AppStyles.warning,
+                      color: context.warning,
                       size: 16,
                     ),
                     const SizedBox(width: AppStyles.spaceXS),
                     Text(
                       'Please select a schedule to start',
                       style: AppStyles.bodyMedium.copyWith(
-                        color: AppStyles.warning,
+                        color: context.warning,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -1713,7 +1661,7 @@ class _TimerScreenState extends State<TimerScreen> {
                 ),
                 icon: Icon(
                   Icons.keyboard_arrow_down,
-                  color: AppStyles.mutedForeground,
+                  color: context.mutedForeground,
                 ),
                 items: [
                   // Calendar events
@@ -1725,14 +1673,14 @@ class _TimerScreenState extends State<TimerScreen> {
                         children: [
                           Icon(
                             Icons.info_outline_rounded,
-                            color: AppStyles.mutedForeground,
+                            color: context.mutedForeground,
                             size: 16,
                           ),
                           const SizedBox(width: AppStyles.spaceXS),
                           Text(
                             'No schedules available',
                             style: AppStyles.bodyMedium.copyWith(
-                              color: AppStyles.mutedForeground,
+                              color: context.mutedForeground,
                               fontStyle: FontStyle.italic,
                             ),
                           ),
@@ -1793,7 +1741,7 @@ class _TimerScreenState extends State<TimerScreen> {
                                         color: AppStyles.success,
                                         shape: BoxShape.circle,
                                         border: Border.all(
-                                          color: AppStyles.background,
+                                          color: context.border,
                                           width: 1,
                                         ),
                                       ),
@@ -1831,13 +1779,13 @@ class _TimerScreenState extends State<TimerScreen> {
                                             vertical: 2,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: AppStyles.mutedForeground.withOpacity(0.1),
+                                            color: context.mutedForeground.withOpacity(0.1),
                                             borderRadius: BorderRadius.circular(4),
                                           ),
                                           child: Text(
                                             '${event.startTime.day}/${event.startTime.month}',
                                             style: AppStyles.bodySmall.copyWith(
-                                              color: AppStyles.mutedForeground,
+                                              color: context.mutedForeground,
                                               fontWeight: FontWeight.w600,
                                               fontSize: 10,
                                             ),
@@ -1947,7 +1895,7 @@ class _TimerScreenState extends State<TimerScreen> {
                 color: AppStyles.muted.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(AppStyles.radiusSM),
                 border: Border.all(
-                  color: AppStyles.border,
+                  color: context.border,
                 ),
               ),
               child: Column(
@@ -1982,16 +1930,12 @@ class _TimerScreenState extends State<TimerScreen> {
             Container(
               padding: const EdgeInsets.all(AppStyles.spaceMD),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    AppStyles.primary.withOpacity(0.08),
-                    AppStyles.primary.withOpacity(0.02),
-                  ],
-                ),
+                color: context.primary.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(AppStyles.radiusSM),
                 border: Border.all(
-                  color: AppStyles.primary.withOpacity(0.2),
+                  color: context.primary.withOpacity(0.3),
                 ),
+                boxShadow: context.shadowSM,
               ),
               child: Row(
                 children: [
@@ -2008,14 +1952,14 @@ class _TimerScreenState extends State<TimerScreen> {
                         Text(
                           'Ready to focus on:',
                           style: AppStyles.bodySmall.copyWith(
-                            color: AppStyles.primary,
+                            color: context.primary,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
                         Text(
                           _selectedCalendarSession!.title,
                           style: AppStyles.bodyLarge.copyWith(
-                            color: AppStyles.primary,
+                            color: context.primary,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -2162,7 +2106,7 @@ class _TimerScreenState extends State<TimerScreen> {
           context.responsive(mobile: 12, tablet: 16, desktop: 20),
         ),
         border: Border.all(
-          color: AppStyles.border.withOpacity(0.3),
+          color: context.border.withOpacity(0.3),
         ),
         boxShadow: [
           BoxShadow(
@@ -2176,7 +2120,7 @@ class _TimerScreenState extends State<TimerScreen> {
         children: [
           Icon(
             Icons.notifications_rounded,
-            color: _alarmEnabled ? AppStyles.primary : AppStyles.mutedForeground,
+            color: _alarmEnabled ? context.primary : context.mutedForeground,
             size: context.responsive(mobile: 24, tablet: 28, desktop: 32),
           ),
           SizedBox(width: context.spacing(16)),
@@ -2223,7 +2167,7 @@ class _TimerScreenState extends State<TimerScreen> {
       decoration: BoxDecoration(
         color: AppStyles.card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppStyles.border, width: 1),
+        border: Border.all(color: context.border, width: 1),
       ),
       child: Column(
         children: [
