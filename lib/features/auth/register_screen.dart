@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/theme/styles.dart';
+import '../../core/theme/theme_colors.dart';
 
 class RegisterScreen extends HookConsumerWidget {
   const RegisterScreen({super.key});
@@ -84,66 +86,130 @@ class RegisterScreen extends HookConsumerWidget {
     }
 
     return Scaffold(
+      backgroundColor: context.background,
       appBar: AppBar(
-        title: const Text('Create Account'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: Icon(
+            Icons.arrow_back_rounded,
+            color: context.foreground,
+          ),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          'Create Account',
+          style: AppStyles.sectionHeader.copyWith(
+            color: context.foreground,
+          ),
+        ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 20),
-                
-                // Welcome Text
-                Text(
-                  'Join Study Mode',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onBackground,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppStyles.spaceLG,
+              vertical: AppStyles.spaceMD,
+            ),
+            child: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                const SizedBox(height: AppStyles.spaceLG),
+                // Sigma Branding
+                Container(
+                  alignment: Alignment.center,
+                  child: Column(
+                    children: [
+                      // Sigma Logo
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: context.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(AppStyles.radiusXL),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(AppStyles.radiusXL),
+                          child: Image.asset(
+                            'assets/images/sigma.png',
+                            width: 50,
+                            height: 50,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Icon(
+                                Icons.flash_on_rounded,
+                                size: 40,
+                                color: context.primary,
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AppStyles.spaceMD),
+                      // Sigma Title
+                      Text(
+                        'Join Sigma',
+                        style: AppStyles.sectionHeader.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: context.primary,
+                        ),
+                      ),
+                      const SizedBox(height: AppStyles.spaceXS),
+                      Text(
+                        'Create your account to unlock your potential',
+                        style: AppStyles.bodyMedium.copyWith(
+                          color: context.mutedForeground,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
-                  textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Create an account to sync your study progress',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 32),
+                const SizedBox(height: AppStyles.spaceLG),
                 
                 // Full Name Field
-                TextFormField(
-                  controller: nameController,
-                  keyboardType: TextInputType.name,
-                  decoration: InputDecoration(
-                    labelText: 'Full Name',
-                    hintText: 'Enter your full name',
-                    prefixIcon: const Icon(Icons.person),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: Theme.of(context).colorScheme.primary,
-                        width: 2,
-                      ),
+                Container(
+                  decoration: BoxDecoration(
+                    color: context.card,
+                    borderRadius: BorderRadius.circular(AppStyles.radiusMD),
+                    border: Border.all(
+                      color: context.border.withOpacity(0.5),
+                      width: 1,
                     ),
                   ),
-                  validator: (value) {
+                  child: TextFormField(
+                    controller: nameController,
+                    keyboardType: TextInputType.name,
+                    style: AppStyles.bodyMedium.copyWith(
+                      color: context.foreground,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: 'Full Name',
+                      hintText: 'Enter your full name',
+                      labelStyle: AppStyles.bodySmall.copyWith(
+                        color: context.mutedForeground,
+                      ),
+                      hintStyle: AppStyles.bodySmall.copyWith(
+                        color: context.mutedForeground,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.person_rounded,
+                        size: 20,
+                        color: context.primary,
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: AppStyles.spaceMD,
+                        vertical: AppStyles.spaceSM,
+                      ),
+                      focusedBorder: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                    ),
+                    validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Please enter your full name';
                     }
@@ -151,7 +217,8 @@ class RegisterScreen extends HookConsumerWidget {
                       return 'Name must be at least 2 characters';
                     }
                     return null;
-                  },
+                    },
+                  ),
                 ),
                 const SizedBox(height: 16),
                 
@@ -326,33 +393,56 @@ class RegisterScreen extends HookConsumerWidget {
                 const SizedBox(height: 32),
                 
                 // Register Button
-                SizedBox(
-                  height: 50,
+                Container(
+                  width: double.infinity,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        context.primary,
+                        context.primary.withOpacity(0.8),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(AppStyles.radiusMD),
+                  ),
                   child: ElevatedButton(
                     onPressed: isLoading.value ? null : handleRegister,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                      backgroundColor: Colors.transparent,
+                      foregroundColor: context.primaryForeground,
+                      shadowColor: Colors.transparent,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(AppStyles.radiusMD),
                       ),
-                      elevation: 2,
                     ),
                     child: isLoading.value
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
+                        ? SizedBox(
+                            width: 24,
+                            height: 24,
                             child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
+                              strokeWidth: 2.5,
+                              color: context.primaryForeground,
                             ),
                           )
-                        : const Text(
-                            'Create Account',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.person_add_rounded,
+                                size: 20,
+                                color: context.primaryForeground,
+                              ),
+                              const SizedBox(width: AppStyles.spaceXS),
+                              Text(
+                                'Create Account',
+                                style: AppStyles.bodyMedium.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: context.primaryForeground,
+                                ),
+                              ),
+                            ],
                           ),
                   ),
                 ),
@@ -380,8 +470,10 @@ class RegisterScreen extends HookConsumerWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
-              ],
+                const SizedBox(height: AppStyles.spaceLG),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
