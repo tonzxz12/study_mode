@@ -17,9 +17,7 @@ import 'data/adapters/duration_adapter.dart';
 import 'data/services/data_sync_service.dart';
 import 'data/services/app_blocking_settings_service.dart';
 import 'core/services/firestore_service.dart';
-import 'core/services/enhanced_firestore_service.dart';
 import 'data/services/calendar_service.dart';
-import 'package:uuid/uuid.dart';
 
 import 'core/theme/styles.dart';
 import 'core/theme/theme_colors.dart';
@@ -506,13 +504,13 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                         final allTimeMinutes = _allTimeStudyTime.inMinutes % 60;
                         final allTimeStr = allTimeHours > 0 ? '${allTimeHours}h ${allTimeMinutes}m' : '${allTimeMinutes}m';
                         
-                        // Calculate overall progress (all-time sessions completion rate)
-                        final totalSessions = _allSessions.length;
-                        final completedSessions = _allSessions.where((s) => s.actualDuration >= s.targetDuration).length;
-                        final focusScore = totalSessions > 0 ? 
-                          min(100, (completedSessions * 100 / totalSessions).round()) : 0;
+                        // Calculate overall progress based on task completion
+                        final totalTasks = _tasks.length;
+                        final completedTasks = _tasks.where((t) => t.isCompleted).length;
+                        final focusScore = totalTasks > 0 ? 
+                          min(100, (completedTasks * 100 / totalTasks).round()) : 0;
                         
-                        print('📊 Stats calculation: ${totalSessions} total sessions, ${completedSessions} completed, ${focusScore}% focus score');
+                        print('📊 Stats calculation: ${totalTasks} total tasks, ${completedTasks} completed, ${focusScore}% completion rate');
                         
                         if (constraints.maxWidth > 600) {
                           // Wide screen: 4 cards in a row
@@ -540,10 +538,10 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                               const SizedBox(width: AppStyles.spaceSM),
                               Expanded(
                                 child: _buildStatCard(
-                                  title: 'Focus Score',
+                                  title: 'Tasks',
                                   value: '${focusScore}%',
-                                  subtitle: 'Completion',
-                                  icon: Icons.psychology_rounded,
+                                  subtitle: 'Completed',
+                                  icon: Icons.assignment_turned_in_rounded,
                                   color: context.primary,
                                 ),
                               ),
@@ -591,10 +589,10 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                                 children: [
                                   Expanded(
                                     child: _buildStatCard(
-                                      title: 'Focus Score',
+                                      title: 'Tasks',
                                       value: '${focusScore}%',
-                                      subtitle: 'Completion',
-                                      icon: Icons.psychology_rounded,
+                                      subtitle: 'Completed',
+                                      icon: Icons.assignment_turned_in_rounded,
                                       color: context.primary,
                                     ),
                                   ),
@@ -758,29 +756,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                         ],
                       ),
                     ),
-                    
-                    const SizedBox(height: AppStyles.spaceXL),
-                    
-                    // Debug Database Test Button
-                    Container(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _testFirestoreConnection,
-                        icon: const Icon(Icons.cloud_sync_rounded, size: 20),
-                        label: const Text('Test Database Connection'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: context.primary,
-                          foregroundColor: context.primaryForeground,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppStyles.spaceLG,
-                            vertical: AppStyles.spaceMD,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppStyles.radiusMD),
-                          ),
-                        ),
-                      ),
-                    ),
+
                   ],
                 ),
               ),
@@ -904,7 +880,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
 
   // Helper methods for real data display
   List<Widget> _buildSubjectProgressBars() {
-    print('📊 Building subject progress: ${_subjects.length} subjects, ${_allSessions.length} sessions');
+    print('📊 Building subject progress: ${_subjects.length} subjects, ${_tasks.length} tasks');
     
     if (_subjects.isEmpty) {
       return [
@@ -921,16 +897,17 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
     for (int i = 0; i < _subjects.take(5).length; i++) {  // Show up to 5 subjects
       final subject = _subjects[i];
       
-      // Calculate all-time progress based on completed vs total sessions for this subject
-      final subjectSessions = _allSessions.where((s) => s.subjectId == subject.id).toList();
-      print('   - ${subject.name}: ${subjectSessions.length} sessions');
+      // Calculate progress based on completed vs total tasks for this subject
+      final subjectTasks = _tasks.where((t) => t.subjectId == subject.id).toList();
+      print('   - ${subject.name}: ${subjectTasks.length} tasks');
       
       double progress;
-      if (subjectSessions.isEmpty) {
+      if (subjectTasks.isEmpty) {
         progress = 0.0;
       } else {
-        final completedSessions = subjectSessions.where((s) => s.actualDuration >= s.targetDuration).length;
-        progress = completedSessions / subjectSessions.length;
+        final completedTasks = subjectTasks.where((t) => t.isCompleted).length;
+        progress = completedTasks / subjectTasks.length;
+        print('     * ${completedTasks}/${subjectTasks.length} tasks completed = ${(progress * 100).round()}%');
       }
       
       final color = Color(int.parse(subject.color.replaceFirst('#', '0xff')));
@@ -996,7 +973,8 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
   }
   
   String _getStudyTip() {
-    print('🔍 Getting study tip - Sessions: ${_allSessions.length}, Study time: ${_totalStudyTime.inMinutes}min, Streak: $_currentStreak');
+    final completedTasks = _tasks.where((t) => t.isCompleted).length;
+    print('🔍 Getting study tip - Sessions: ${_allSessions.length}, Tasks: ${_tasks.length}/${completedTasks} completed, Study time: ${_totalStudyTime.inMinutes}min, Streak: $_currentStreak');
     
     if (_blockingSettings?.isEnabled == true) {
       final blockedCount = _blockingSettings?.blockedApps.length ?? 0;
@@ -1007,10 +985,19 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
       return 'Amazing! You\'re on a $_currentStreak-day streak. Keep the momentum going!';
     }
     
-    if (_allSessions.isEmpty) {
+    if (completedTasks > 0 && _tasks.isNotEmpty) {
+      final completionRate = (completedTasks / _tasks.length * 100).round();
+      return 'Great job! You\'ve completed $completedTasks out of ${_tasks.length} tasks ($completionRate%).';
+    }
+    
+    if (_tasks.isNotEmpty && completedTasks == 0) {
+      return 'You have ${_tasks.length} tasks waiting. Complete your first task to build momentum!';
+    }
+    
+    if (_allSessions.isEmpty && _tasks.isEmpty) {
       return _subjects.isEmpty 
-        ? 'Welcome to SIGMA! Go to Planner to add your first subject, then start studying.'
-        : 'You have ${_subjects.length} subjects ready. Tap Start to begin your first study session!';
+        ? 'Welcome to SIGMA! Go to Planner to add your first subject and tasks.'
+        : 'You have ${_subjects.length} subjects ready. Add some tasks in Planner to track your progress!';
     }
     
     if (_totalStudyTime.inMinutes < 25) {
@@ -1024,58 +1011,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
     return 'You\'re making progress! Total study time: ${(_totalStudyTime.inHours > 0) ? "${_totalStudyTime.inHours}h ${_totalStudyTime.inMinutes % 60}m" : "${_totalStudyTime.inMinutes}m"}';
   }
   
-  Future<void> _testFirestoreConnection() async {
-    print('🔍 Testing Firestore database connection...');
-    
-    try {
-      final currentUserId = FirestoreService.currentUserId;
-      if (currentUserId == null) {
-        print('❌ No authenticated user!');
-        return;
-      }
-      
-      print('👤 User ID: $currentUserId');
-      
-      // Test connection
-      final canConnect = await EnhancedFirestoreService.testConnection();
-      print('🔍 Connection test: ${canConnect ? '✅ SUCCESS' : '❌ FAILED'}');
-      
-      if (!canConnect) return;
-      
-      // Test creating a subject
-      final testSubject = Subject(
-        id: const Uuid().v4(),
-        name: 'Test Subject ${DateTime.now().millisecondsSinceEpoch}',
-        color: '#2196F3',
-        description: 'Test subject from home screen',
-        userId: currentUserId,
-        createdAt: DateTime.now(),
-      );
-      
-      final saveSuccess = await EnhancedFirestoreService.saveSubject(testSubject);
-      print('💾 Save test: ${saveSuccess ? '✅ SUCCESS' : '❌ FAILED'}');
-      
-      // Test fetching data
-      final subjects = await EnhancedFirestoreService.getAllSubjects();
-      final tasks = await EnhancedFirestoreService.getAllTasks();
-      final sessions = await EnhancedFirestoreService.getAllStudySessions();
-      
-      print('📊 Fetch results:');
-      print('  📚 Subjects: ${subjects.length}');
-      print('  📋 Tasks: ${tasks.length}');
-      print('  📆 Sessions: ${sessions.length}');
-      
-      // Reload the UI data
-      await _loadRealData();
-      
-    } catch (e) {
-      print('❌ Database test error: $e');
-    }
-  }
 
-
-
-  // Test Firestore Connection Method
   
   // Schedule Item Helper - Shadcn Style
   Widget _buildScheduleItem(String time, String subject, String topic, Color color, {bool isBreak = false}) {

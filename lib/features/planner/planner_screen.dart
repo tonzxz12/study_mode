@@ -46,11 +46,6 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
   
   Future<void> _loadData() async {
     try {
-      print('🔍 === PLANNER SCREEN LOADING DATA ===');
-      print('📱 Loading data directly from online database (Firestore)...');
-      print('🆔 Current Firebase user ID: ${FirestoreService.currentUserId}');
-      print('📧 Current Firebase user email: ${FirestoreService.currentUserId != null ? "User authenticated" : "No user"}');
-      
       final loadedSubjects = await EnhancedFirestoreService.getAllSubjects();
       final loadedTasks = await EnhancedFirestoreService.getAllTasks();
       
@@ -58,8 +53,6 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
         subjects = loadedSubjects;
         tasks = loadedTasks;
       });
-      
-      print('✅ Loaded ${subjects.length} subjects and ${tasks.length} tasks from online database');
     } catch (e) {
       print('❌ Error loading data from online database: $e');
       setState(() {
@@ -441,7 +434,8 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
                     // Content based on selected tab
                     if (_currentIndex == 0) 
                       SubjectsTab(
-                        subjects: subjects, 
+                        subjects: subjects,
+                        tasks: tasks,
                         onSubjectEdit: _editSubject,
                         onSubjectDelete: _deleteSubject,
                       ) 
@@ -748,15 +742,59 @@ class _PlannerScreenState extends State<PlannerScreen> with TickerProviderStateM
 
 class SubjectsTab extends StatelessWidget {
   final List<Subject> subjects;
+  final List<Task> tasks;
   final Function(int, Subject)? onSubjectEdit;
   final Function(int, Subject)? onSubjectDelete;
   
   const SubjectsTab({
     super.key, 
     required this.subjects,
+    required this.tasks,
     required this.onSubjectEdit,
     required this.onSubjectDelete,
   });
+
+  // Calculate progress for a specific subject based on completed tasks
+  double _calculateSubjectProgress(Subject subject) {
+    final subjectTasks = tasks.where((task) => task.subjectId == subject.id).toList();
+    if (subjectTasks.isEmpty) return 0.0;
+    
+    final completedTasks = subjectTasks.where((task) => task.isCompleted).length;
+    return completedTasks / subjectTasks.length;
+  }
+  
+  // Calculate average progress across all subjects
+  String _calculateAverageProgress() {
+    if (subjects.isEmpty) return '0%';
+    
+    double totalProgress = 0.0;
+    int subjectsWithTasks = 0;
+    
+    for (final subject in subjects) {
+      final subjectTasks = tasks.where((task) => task.subjectId == subject.id).toList();
+      if (subjectTasks.isNotEmpty) {
+        final completedTasks = subjectTasks.where((task) => task.isCompleted).length;
+        totalProgress += completedTasks / subjectTasks.length;
+        subjectsWithTasks++;
+      }
+    }
+    
+    if (subjectsWithTasks == 0) return '0%';
+    
+    final averageProgress = (totalProgress / subjectsWithTasks * 100).round();
+    return '${averageProgress}%';
+  }
+  
+  // Get task summary for a subject
+  String _getSubjectTaskSummary(Subject subject) {
+    final subjectTasks = tasks.where((task) => task.subjectId == subject.id).toList();
+    if (subjectTasks.isEmpty) {
+      return subject.description.isEmpty ? 'No tasks yet' : subject.description;
+    }
+    
+    final completedTasks = subjectTasks.where((task) => task.isCompleted).length;
+    return '$completedTasks of ${subjectTasks.length} tasks completed';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -781,7 +819,7 @@ class SubjectsTab extends StatelessWidget {
               Expanded(
                 child: _buildStatCard(
                   title: 'Avg Progress',
-                  value: subjects.isEmpty ? '0%' : '75%', // TODO: Add progress field to Subject model
+                  value: _calculateAverageProgress(),
                   subtitle: 'Completed',
                   icon: Icons.trending_up_rounded,
                   color: AppStyles.success,
@@ -955,7 +993,7 @@ class SubjectsTab extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      'Study sessions: ${subject.description.isEmpty ? 'None yet' : subject.description}',
+                      _getSubjectTaskSummary(subject),
                       style: AppStyles.bodySmall.copyWith(
                         color: context.mutedForeground,
                       ),
@@ -1035,6 +1073,13 @@ class SubjectsTab extends StatelessWidget {
                       color: context.mutedForeground,
                     ),
                   ),
+                  Text(
+                    '${(_calculateSubjectProgress(subject) * 100).round()}%',
+                    style: AppStyles.bodySmall.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: context.foreground,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: AppStyles.spaceXS),
@@ -1046,7 +1091,7 @@ class SubjectsTab extends StatelessWidget {
                 ),
                 child: FractionallySizedBox(
                   alignment: Alignment.centerLeft,
-                  widthFactor: 0.65, // TODO: Add progress field to Subject model
+                  widthFactor: _calculateSubjectProgress(subject),
                   child: Container(
                     decoration: BoxDecoration(
                       color: _colorFromString(subject.color),
@@ -1256,90 +1301,160 @@ class _TasksTabState extends State<TasksTab> {
       ),
       child: Row(
         children: [
-          // Checkbox
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppStyles.radiusSM),
-            ),
-            child: Checkbox(
-              value: task.isCompleted,
-              onChanged: (value) {
-                final updatedTask = task.copyWith(
-                  isCompleted: value ?? false,
-                );
-                widget.onTaskUpdate(index, updatedTask);
-              },
-              activeColor: context.success,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(4),
+          // Custom Complete Button with Tooltip
+          Tooltip(
+            message: task.isCompleted ? 'Mark as incomplete' : 'Mark as complete',
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  final updatedTask = task.copyWith(
+                    isCompleted: !task.isCompleted,
+                  );
+                  widget.onTaskUpdate(index, updatedTask);
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOut,
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: task.isCompleted 
+                        ? context.success 
+                        : context.muted.withOpacity(0.3),
+                    border: Border.all(
+                      color: task.isCompleted 
+                          ? context.success 
+                          : context.border.withOpacity(0.6),
+                      width: task.isCompleted ? 2 : 1.5,
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: task.isCompleted ? [
+                      BoxShadow(
+                        color: context.success.withOpacity(0.25),
+                        blurRadius: 6,
+                        spreadRadius: 1,
+                        offset: const Offset(0, 2),
+                      ),
+                    ] : null,
+                  ),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: task.isCompleted
+                        ? Icon(
+                            Icons.check_rounded,
+                            key: const ValueKey('completed'),
+                            color: Colors.white,
+                            size: 20,
+                          )
+                        : Icon(
+                            Icons.radio_button_unchecked_rounded,
+                            key: const ValueKey('incomplete'),
+                            color: context.mutedForeground.withOpacity(0.7),
+                            size: 18,
+                          ),
+                  ),
+                ),
               ),
             ),
           ),
-          const SizedBox(width: AppStyles.spaceSM),
+          const SizedBox(width: AppStyles.spaceMD),
           // Task Content
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  task.title,
-                  style: AppStyles.bodyMedium.copyWith(
-                    fontWeight: FontWeight.w500,
-                    decoration: task.isCompleted ? TextDecoration.lineThrough : TextDecoration.none,
-                    color: task.isCompleted ? context.mutedForeground : context.foreground,
-                  ),
-                ),
-                const SizedBox(height: AppStyles.spaceXS),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppStyles.spaceXS,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: context.muted.withOpacity(0.7),
-                        borderRadius: BorderRadius.circular(AppStyles.radiusSM),
-                      ),
-                      child: Text(
-                        taskSubject.name,
-                        style: AppStyles.bodySmall.copyWith(
-                          color: context.mutedForeground,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: task.isCompleted ? 0.7 : 1.0,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          task.title,
+                          style: AppStyles.bodyMedium.copyWith(
+                            fontWeight: FontWeight.w500,
+                            decoration: task.isCompleted ? TextDecoration.lineThrough : TextDecoration.none,
+                            decorationColor: context.mutedForeground,
+                            color: task.isCompleted ? context.mutedForeground : context.foreground,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: AppStyles.spaceXS),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppStyles.spaceXS,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: priorityColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(AppStyles.radiusSM),
-                      ),
-                      child: Text(
-                        task.priority,
-                        style: TextStyle(
-                          color: priorityColor,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                      if (task.isCompleted)
+                        Container(
+                          margin: const EdgeInsets.only(left: AppStyles.spaceXS),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppStyles.spaceXS,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: context.success.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(AppStyles.radiusSM),
+                          ),
+                          child: Text(
+                            'Completed',
+                            style: AppStyles.bodySmall.copyWith(
+                              color: context.success,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: AppStyles.spaceXS),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppStyles.spaceXS,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: context.muted.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(AppStyles.radiusSM),
+                        ),
+                        child: Text(
+                          taskSubject.name,
+                          style: AppStyles.bodySmall.copyWith(
+                            color: context.mutedForeground,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppStyles.spaceXS),
-                Text(
-                  'Due: ${task.dueDate.day}/${task.dueDate.month}/${task.dueDate.year}',
-                  style: AppStyles.bodySmall.copyWith(
-                    color: isOverdue ? context.destructive : context.mutedForeground,
-                    fontWeight: isOverdue ? FontWeight.w500 : FontWeight.normal,
+                      const SizedBox(width: AppStyles.spaceXS),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppStyles.spaceXS,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: priorityColor.withOpacity(task.isCompleted ? 0.05 : 0.1),
+                          borderRadius: BorderRadius.circular(AppStyles.radiusSM),
+                        ),
+                        child: Text(
+                          task.priority,
+                          style: TextStyle(
+                            color: task.isCompleted ? priorityColor.withOpacity(0.6) : priorityColor,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: AppStyles.spaceXS),
+                  Text(
+                    'Due: ${task.dueDate.day}/${task.dueDate.month}/${task.dueDate.year}',
+                    style: AppStyles.bodySmall.copyWith(
+                      color: isOverdue ? context.destructive : context.mutedForeground,
+                      fontWeight: isOverdue ? FontWeight.w500 : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           // Actions
