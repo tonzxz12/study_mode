@@ -7,12 +7,12 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/providers/theme_provider.dart';
 import '../../core/theme/styles.dart';
+import '../../core/theme/theme_colors.dart';
 import '../../core/services/app_blocking_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/firestore_service.dart';
 import '../../data/services/app_blocking_settings_service.dart';
 import '../auth/auth_wrapper.dart';
-import '../debug/firestore_debug_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -241,17 +241,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppStyles.primary.withOpacity(0.05),
-              AppStyles.background,
-              AppStyles.primary.withOpacity(0.02),
-            ],
-          ),
-        ),
+        color: context.background,
         child: SafeArea(
           bottom: false,
           child: SingleChildScrollView(
@@ -278,13 +268,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                             Container(
                               padding: const EdgeInsets.all(AppStyles.spaceXS),
                               decoration: BoxDecoration(
-                                color: AppStyles.primary.withOpacity(0.1),
+                                color: context.primary.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(AppStyles.radiusMD),
                               ),
                               child: Icon(
                                 Icons.settings_rounded,
                                 size: 32,
-                                color: AppStyles.primary,
+                                color: context.primary,
                               ),
                             ),
                             const SizedBox(width: AppStyles.spaceMD),
@@ -298,14 +288,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                                     style: AppStyles.screenTitle.copyWith(
                                       height: 1.1,
                                       letterSpacing: -0.5,
-                                      color: AppStyles.primary,
+                                      color: context.primary,
                                       fontWeight: FontWeight.w900,
                                     ),
                                   ),
                                   Text(
                                     'App Configuration',
                                     style: TextStyle(
-                                      color: AppStyles.foreground,
+                                      color: context.foreground,
                                       fontWeight: FontWeight.w600,
                                       fontSize: 18,
                                     ),
@@ -324,13 +314,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                         ),
                         decoration: BoxDecoration(
                           color: _studyModeEnabled 
-                              ? AppStyles.success.withOpacity(0.1)
-                              : AppStyles.muted.withOpacity(0.5),
+                              ? context.success.withOpacity(0.1)
+                              : context.muted.withOpacity(0.5),
                           borderRadius: BorderRadius.circular(AppStyles.radiusXL),
                           border: Border.all(
                             color: _studyModeEnabled 
-                                ? AppStyles.success.withOpacity(0.3)
-                                : AppStyles.border,
+                                ? context.success.withOpacity(0.3)
+                                : context.border,
                             width: 1,
                           ),
                         ),
@@ -341,7 +331,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                               width: 6,
                               height: 6,
                               decoration: BoxDecoration(
-                                color: _studyModeEnabled ? AppStyles.success : AppStyles.mutedForeground,
+                                color: _studyModeEnabled ? context.success : context.mutedForeground,
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -349,7 +339,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                             Text(
                               _studyModeEnabled ? 'Active' : 'Inactive',
                               style: TextStyle(
-                                color: _studyModeEnabled ? AppStyles.success : AppStyles.mutedForeground,
+                                color: _studyModeEnabled ? context.success : context.mutedForeground,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 12,
                               ),
@@ -419,11 +409,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                         const SizedBox(height: AppStyles.spaceXL),
                       ],
                       
-                      // Break Duration Card
-                      _buildBreakDurationCard(),
-                      
-                      const SizedBox(height: AppStyles.spaceXL),
-                      
                       // Theme Settings Card  
                       _buildThemeCard(),
                       
@@ -431,11 +416,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                       
                       // Data Management Card
                       _buildDataCard(),
-
-                      const SizedBox(height: AppStyles.spaceXL),
-
-                      // Debug Card (for testing Firestore)
-                      _buildDebugCard(),
 
                       const SizedBox(height: AppStyles.spaceXL),
 
@@ -469,26 +449,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
           Container(
             padding: const EdgeInsets.all(AppStyles.spaceSM),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppStyles.destructive.withOpacity(0.15),
-                  AppStyles.destructive.withOpacity(0.05),
-                ],
-              ),
+              color: context.destructive.withOpacity(0.1),
               borderRadius: BorderRadius.circular(AppStyles.radiusMD),
               border: Border.all(
-                color: AppStyles.destructive.withOpacity(0.2),
+                color: context.destructive.withOpacity(0.2),
                 width: 1,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppStyles.destructive.withOpacity(0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, 1),
-                ),
-              ],
+              boxShadow: context.shadowSM,
             ),
-            child: Icon(Icons.block_rounded, color: AppStyles.destructive, size: 20),
+            child: Icon(Icons.block_rounded, color: context.destructive, size: 20),
           ),
           const SizedBox(width: AppStyles.spaceMD),
           Expanded(
@@ -501,7 +470,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                       'App Blocking',
                       style: AppStyles.bodyMedium.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: AppStyles.foreground,
+                        color: context.foreground,
                       ),
                     ),
                     const SizedBox(width: AppStyles.spaceXS),
@@ -532,7 +501,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                       ? 'Ready to block selected apps during study sessions'
                       : 'Requires device permissions for full functionality',
                   style: AppStyles.bodySmall.copyWith(
-                    color: AppStyles.mutedForeground,
+                    color: context.mutedForeground,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -551,10 +520,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                   _saveSettings();
                 }
               },
-              activeColor: AppStyles.primary,
-              activeTrackColor: AppStyles.primary.withOpacity(0.3),
-              inactiveThumbColor: AppStyles.mutedForeground,
-              inactiveTrackColor: AppStyles.muted.withOpacity(0.5),
+              activeColor: context.primary,
+              activeTrackColor: context.primary.withOpacity(0.3),
+              inactiveThumbColor: context.mutedForeground,
+              inactiveTrackColor: context.muted.withOpacity(0.5),
             ),
           ),
         ],
@@ -571,7 +540,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
           child: Text(
             'Grant the following permissions to enable app blocking during study sessions:',
             style: AppStyles.bodySmall.copyWith(
-              color: AppStyles.mutedForeground,
+              color: context.mutedForeground,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -699,7 +668,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                         title,
                         style: AppStyles.bodyMedium.copyWith(
                           fontWeight: FontWeight.w600,
-                          color: AppStyles.foreground,
+                          color: context.foreground,
                         ),
                       ),
                       const SizedBox(width: AppStyles.spaceXS),
@@ -709,13 +678,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: (isGranted ? AppStyles.success : AppStyles.warning).withOpacity(0.1),
+                          color: (isGranted ? context.success : context.warning).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(AppStyles.radiusSM),
                         ),
                         child: Text(
                           isGranted ? 'Granted' : 'Required',
                           style: TextStyle(
-                            color: isGranted ? AppStyles.success : AppStyles.warning,
+                            color: isGranted ? context.success : context.warning,
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
                           ),
@@ -727,7 +696,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                   Text(
                     subtitle,
                     style: AppStyles.bodySmall.copyWith(
-                      color: AppStyles.mutedForeground,
+                      color: context.mutedForeground,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -737,13 +706,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
             if (!isGranted)
               Icon(
                 Icons.chevron_right_rounded,
-                color: AppStyles.mutedForeground,
+                color: context.mutedForeground,
                 size: 20,
               ),
             if (isGranted)
               Icon(
                 Icons.check_circle_rounded,
-                color: AppStyles.success,
+                color: context.success,
                 size: 20,
               ),
           ],
@@ -758,31 +727,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
   }) {
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppStyles.card,
-            AppStyles.card.withOpacity(0.8),
-          ],
-        ),
+        color: context.card,
         borderRadius: BorderRadius.circular(AppStyles.radiusLG),
         border: Border.all(
-          color: AppStyles.border.withOpacity(0.4),
+          color: context.border.withOpacity(0.4),
           width: 1.5,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: AppStyles.black.withOpacity(0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-          BoxShadow(
-            color: AppStyles.black.withOpacity(0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        boxShadow: context.shadowSM,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -794,7 +745,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
               style: AppStyles.subsectionHeader.copyWith(
                 fontWeight: FontWeight.w700,
                 fontSize: 18,
-                color: AppStyles.foreground,
+                color: context.foreground,
               ),
             ),
           ),
@@ -852,14 +803,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                   title,
                   style: AppStyles.bodyMedium.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: AppStyles.foreground,
+                    color: context.foreground,
                   ),
                 ),
                 const SizedBox(height: AppStyles.spaceXS),
                 Text(
                   subtitle,
                   style: AppStyles.bodySmall.copyWith(
-                    color: AppStyles.mutedForeground,
+                    color: context.mutedForeground,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -871,10 +822,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
             child: Switch(
               value: value,
               onChanged: onChanged,
-              activeColor: AppStyles.primary,
-              activeTrackColor: AppStyles.primary.withOpacity(0.3),
-              inactiveThumbColor: AppStyles.mutedForeground,
-              inactiveTrackColor: AppStyles.muted.withOpacity(0.5),
+              activeColor: context.primary,
+              activeTrackColor: context.primary.withOpacity(0.3),
+              inactiveThumbColor: context.mutedForeground,
+              inactiveTrackColor: context.muted.withOpacity(0.5),
             ),
           ),
         ],
@@ -890,7 +841,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
         gradient: LinearGradient(
           colors: [
             Colors.transparent,
-            AppStyles.border.withOpacity(0.5),
+            context.border.withOpacity(0.5),
             Colors.transparent,
           ],
         ),
@@ -924,16 +875,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                 ),
                 decoration: BoxDecoration(
                   color: blockedCount > 0 
-                      ? AppStyles.destructive.withOpacity(0.1)
-                      : AppStyles.muted.withOpacity(0.5),
+                      ? context.destructive.withOpacity(0.1)
+                      : context.muted.withOpacity(0.5),
                   borderRadius: BorderRadius.circular(AppStyles.radiusSM),
                 ),
                 child: Text(
                   '$blockedCount/${_blockableApps.length} blocked',
                   style: TextStyle(
                     color: blockedCount > 0 
-                        ? AppStyles.destructive 
-                        : AppStyles.mutedForeground,
+                        ? context.destructive 
+                        : context.mutedForeground,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -998,16 +949,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                       width: 12,
                       height: 12,
                       decoration: BoxDecoration(
-                        color: AppStyles.destructive,
+                        color: context.destructive,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: AppStyles.card,
+                          color: context.card,
                           width: 1,
                         ),
                       ),
                       child: Icon(
                         Icons.block,
-                        color: AppStyles.white,
+                        color: context.primaryForeground,
                         size: 8,
                       ),
                     ),
@@ -1028,7 +979,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                         fontWeight: FontWeight.w600,
                         color: isBlocked 
                             ? AppStyles.mutedForeground 
-                            : AppStyles.foreground,
+                            : context.foreground,
                         decoration: isBlocked 
                             ? TextDecoration.lineThrough 
                             : TextDecoration.none,
@@ -1078,10 +1029,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                 });
                 _updateAppBlocking(app['package'] as String, value);
               },
-              activeColor: AppStyles.destructive,
-              activeTrackColor: AppStyles.destructive.withOpacity(0.3),
-              inactiveThumbColor: AppStyles.mutedForeground,
-              inactiveTrackColor: AppStyles.muted.withOpacity(0.5),
+              activeColor: context.destructive,
+              activeTrackColor: context.destructive.withOpacity(0.3),
+              inactiveThumbColor: context.mutedForeground,
+              inactiveTrackColor: context.muted.withOpacity(0.5),
             ),
           ),
         ],
@@ -1115,9 +1066,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
           SnackBar(
             content: Text(
               'Now blocking ${_blockableApps.firstWhere((app) => app['package'] == packageName)['name']}',
-              style: const TextStyle(color: AppStyles.white),
+              style: TextStyle(color: context.primaryForeground),
             ),
-            backgroundColor: AppStyles.destructive,
+            backgroundColor: context.destructive,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppStyles.radiusMD)
@@ -1172,139 +1123,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
     }
   }
 
-  Widget _buildBreakDurationCard() {
-    return Container(
-      padding: const EdgeInsets.all(AppStyles.spaceLG),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppStyles.card,
-            AppStyles.card.withOpacity(0.8),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(AppStyles.radiusLG),
-        border: Border.all(
-          color: AppStyles.border.withOpacity(0.4),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppStyles.black.withOpacity(0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(AppStyles.spaceSM),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppStyles.warning.withOpacity(0.15),
-                      AppStyles.warning.withOpacity(0.05),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(AppStyles.radiusMD),
-                  border: Border.all(
-                    color: AppStyles.warning.withOpacity(0.2),
-                    width: 1,
-                  ),
-                ),
-                child: Icon(
-                  Icons.timer_rounded,
-                  color: AppStyles.warning,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: AppStyles.spaceMD),
-              Text(
-                'Break Duration',
-                style: AppStyles.subsectionHeader.copyWith(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                  color: AppStyles.foreground,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppStyles.spaceSM),
-          Text(
-            'How long breaks should last during study sessions',
-            style: AppStyles.bodySmall.copyWith(
-              color: AppStyles.mutedForeground,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: AppStyles.spaceLG),
-          
-          Row(
-            children: [
-              Expanded(
-                child: SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    activeTrackColor: AppStyles.primary,
-                    inactiveTrackColor: AppStyles.muted,
-                    thumbColor: AppStyles.primary,
-                    overlayColor: AppStyles.primary.withOpacity(0.2),
-                    valueIndicatorColor: AppStyles.primary,
-                    valueIndicatorTextStyle: const TextStyle(
-                      color: AppStyles.white,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  child: Slider(
-                    value: _defaultBreakDuration.toDouble(),
-                    min: 5,
-                    max: 60,
-                    divisions: 11,
-                    label: '$_defaultBreakDuration minutes',
-                    onChanged: (value) {
-                      setState(() => _defaultBreakDuration = value.round());
-                      _saveSettings();
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppStyles.spaceMD),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppStyles.spaceMD, 
-                  vertical: AppStyles.spaceSM
-                ),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppStyles.primary.withOpacity(0.15),
-                      AppStyles.primary.withOpacity(0.05),
-                    ],
-                  ),
-                  border: Border.all(
-                    color: AppStyles.primary.withOpacity(0.3), 
-                    width: 1.5
-                  ),
-                  borderRadius: BorderRadius.circular(AppStyles.radiusMD),
-                ),
-                child: Text(
-                  '$_defaultBreakDuration min',
-                  style: AppStyles.bodyMedium.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: AppStyles.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+
 
   Widget _buildThemeCard() {
     final themeNotifier = ref.read(themeProvider.notifier);
@@ -1313,26 +1132,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
     return Container(
       padding: const EdgeInsets.all(AppStyles.spaceLG),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppStyles.card,
-            AppStyles.card.withOpacity(0.8),
-          ],
-        ),
+        color: context.card,
         borderRadius: BorderRadius.circular(AppStyles.radiusLG),
         border: Border.all(
-          color: AppStyles.border.withOpacity(0.4),
+          color: context.border.withOpacity(0.4),
           width: 1.5,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: AppStyles.black.withOpacity(0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: context.shadowSM,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1342,21 +1148,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
               Container(
                 padding: const EdgeInsets.all(AppStyles.spaceSM),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppStyles.info.withOpacity(0.15),
-                      AppStyles.info.withOpacity(0.05),
-                    ],
-                  ),
+                  color: context.info.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(AppStyles.radiusMD),
                   border: Border.all(
-                    color: AppStyles.info.withOpacity(0.2),
+                    color: context.info.withOpacity(0.2),
                     width: 1,
                   ),
                 ),
                 child: Icon(
                   Icons.palette_rounded,
-                  color: AppStyles.info,
+                  color: context.info,
                   size: 20,
                 ),
               ),
@@ -1366,7 +1167,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                 style: AppStyles.subsectionHeader.copyWith(
                   fontWeight: FontWeight.w700,
                   fontSize: 18,
-                  color: AppStyles.foreground,
+                  color: context.foreground,
                 ),
               ),
             ],
@@ -1383,14 +1184,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                       'Theme Mode',
                       style: AppStyles.bodyMedium.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: AppStyles.foreground,
+                        color: context.foreground,
                       ),
                     ),
                     const SizedBox(height: AppStyles.spaceXS),
                     Text(
                       themeName,
                       style: AppStyles.bodySmall.copyWith(
-                        color: AppStyles.mutedForeground,
+                        color: context.mutedForeground,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -1400,8 +1201,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
               ElevatedButton(
                 onPressed: () => _showThemeSelector(),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppStyles.primary,
-                  foregroundColor: AppStyles.primaryForeground,
+                  backgroundColor: context.primary,
+                  foregroundColor: context.primaryForeground,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppStyles.radiusMD),
                   ),
@@ -1410,7 +1211,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                     vertical: AppStyles.spaceSM
                   ),
                   elevation: 4,
-                  shadowColor: AppStyles.primary.withOpacity(0.3),
+                  shadowColor: context.primary.withOpacity(0.3),
                 ),
                 child: Text(
                   'Change',
@@ -1947,7 +1748,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
             'Choose Theme',
             style: AppStyles.sectionHeader.copyWith(
               fontWeight: FontWeight.w700,
-              color: AppStyles.foreground,
+              color: context.foreground,
             ),
           ),
           content: SingleChildScrollView(
@@ -1957,7 +1758,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                 Text(
                   'Select your preferred theme mode',
                   style: AppStyles.bodyMedium.copyWith(
-                    color: AppStyles.mutedForeground,
+                    color: context.mutedForeground,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -1975,7 +1776,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
               style: TextButton.styleFrom(
-                foregroundColor: AppStyles.mutedForeground,
+                foregroundColor: context.mutedForeground,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppStyles.radiusMD)
                 ),
@@ -2005,27 +1806,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
             Container(
               padding: const EdgeInsets.all(AppStyles.spaceSM),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    isSelected 
-                        ? AppStyles.primary.withOpacity(0.15) 
-                        : AppStyles.muted.withOpacity(0.3),
-                    isSelected 
-                        ? AppStyles.primary.withOpacity(0.05) 
-                        : AppStyles.muted.withOpacity(0.1),
-                  ],
-                ),
+                color: isSelected 
+                    ? context.primary.withOpacity(0.1) 
+                    : context.muted.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(AppStyles.radiusMD),
                 border: Border.all(
                   color: isSelected 
-                      ? AppStyles.primary.withOpacity(0.3) 
-                      : AppStyles.border,
+                      ? context.primary.withOpacity(0.3) 
+                      : context.border,
                   width: 1,
                 ),
               ),
               child: Icon(
                 icon,
-                color: isSelected ? AppStyles.primary : AppStyles.mutedForeground,
+                color: isSelected ? context.primary : context.mutedForeground,
                 size: 20,
               ),
             ),
@@ -2035,14 +1829,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                 title,
                 style: AppStyles.bodyMedium.copyWith(
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  color: isSelected ? AppStyles.foreground : AppStyles.mutedForeground,
+                  color: isSelected ? context.foreground : context.mutedForeground,
                 ),
               ),
             ),
             if (isSelected)
               Icon(
                 Icons.check_rounded,
-                color: AppStyles.primary,
+                color: context.primary,
                 size: 20,
               ),
           ],
@@ -2449,27 +2243,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
     );
   }
 
-  Widget _buildDebugCard() {
-    return _buildModernCard(
-      title: 'Developer Tools',
-      children: [
-        _buildDataTile(
-          title: 'Firestore Debug',
-          subtitle: 'Test database connection and data saving',
-          icon: Icons.bug_report_rounded,
-          iconColor: AppStyles.warning,
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => const FirestoreDebugScreen(),
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: AppStyles.spaceSM),
-      ],
-    );
-  }
+
 
   // Load blocked apps from Firebase
   Future<void> _loadBlockedAppsFromFirebase() async {
