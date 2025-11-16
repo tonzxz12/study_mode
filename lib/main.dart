@@ -20,6 +20,7 @@ import 'core/services/firestore_service.dart';
 import 'data/services/calendar_service.dart';
 
 import 'core/theme/styles.dart';
+import 'core/theme/theme_colors.dart';
 import 'core/components/components.dart';
 import 'core/utils/responsive_utils.dart';
 import 'core/providers/theme_provider.dart';
@@ -331,16 +332,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
 
   Widget _buildHomePlaceholder() {
     return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            AppStyles.primary.withOpacity(0.05),
-            AppStyles.background,
-          ],
-        ),
-      ),
+      color: context.background,
       child: SafeArea(
         bottom: false,
         child: SingleChildScrollView(
@@ -367,7 +359,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                           Container(
                             padding: const EdgeInsets.all(AppStyles.spaceXS),
                             decoration: BoxDecoration(
-                              color: AppStyles.primary.withOpacity(0.1),
+                              color: context.primary.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(AppStyles.radiusMD),
                             ),
                             child: Image.asset(
@@ -380,7 +372,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                                 return Icon(
                                   Icons.psychology_rounded,
                                   size: 32,
-                                  color: AppStyles.primary,
+                                  color: context.primary,
                                 );
                               },
                             ),
@@ -401,14 +393,14 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                                       TextSpan(
                                         text: 'SIGMA\n',
                                         style: TextStyle(
-                                          color: AppStyles.primary,
+                                          color: context.primary,
                                           fontWeight: FontWeight.w900,
                                         ),
                                       ),
                                       TextSpan(
                                         text: 'Your Study Mate',
                                         style: TextStyle(
-                                          color: AppStyles.foreground,
+                                          color: context.foreground,
                                           fontWeight: FontWeight.w600,
                                           fontSize: 18,
                                         ),
@@ -426,8 +418,8 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                     ElevatedButton(
                       onPressed: () => _onCenterFabPressed(),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppStyles.primary,
-                        foregroundColor: Colors.white,
+                        backgroundColor: context.primary,
+                        foregroundColor: context.primaryForeground,
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppStyles.spaceLG,
                           vertical: AppStyles.spaceMD
@@ -496,7 +488,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                                   value: todayTimeStr.isEmpty ? '0m' : todayTimeStr,
                                   subtitle: 'Today',
                                   icon: Icons.timer_rounded,
-                                  color: TimerStyles.focusColor,
+                                  color: context.timerFocus,
                                 ),
                               ),
                               const SizedBox(width: AppStyles.spaceSM),
@@ -506,7 +498,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                                   value: '${_todaySessions.length}',
                                   subtitle: 'Completed',
                                   icon: Icons.check_circle_rounded,
-                                  color: AppStyles.success,
+                                  color: context.success,
                                 ),
                               ),
                               const SizedBox(width: AppStyles.spaceSM),
@@ -516,7 +508,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                                   value: '${focusScore}%',
                                   subtitle: 'This week',
                                   icon: Icons.psychology_rounded,
-                                  color: PlannerStyles.subjectColor,
+                                  color: context.primary,
                                 ),
                               ),
                               const SizedBox(width: AppStyles.spaceSM),
@@ -526,7 +518,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                                   value: '$_currentStreak',
                                   subtitle: 'Days',
                                   icon: Icons.local_fire_department_rounded,
-                                  color: AppStyles.warning,
+                                  color: context.warning,
                                 ),
                               ),
                             ],
@@ -543,7 +535,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                                       value: todayTimeStr.isEmpty ? '0m' : todayTimeStr,
                                       subtitle: 'Today',
                                       icon: Icons.timer_rounded,
-                                      color: TimerStyles.focusColor,
+                                      color: context.timerFocus,
                                     ),
                                   ),
                                   const SizedBox(width: AppStyles.spaceSM),
@@ -553,7 +545,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                                       value: '${_todaySessions.length}',
                                       subtitle: 'Completed',
                                       icon: Icons.check_circle_rounded,
-                                      color: AppStyles.success,
+                                      color: context.success,
                                     ),
                                   ),
                                 ],
@@ -567,7 +559,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                                       value: '${focusScore}%',
                                       subtitle: 'This week',
                                       icon: Icons.psychology_rounded,
-                                      color: PlannerStyles.subjectColor,
+                                      color: context.primary,
                                     ),
                                   ),
                                   const SizedBox(width: AppStyles.spaceSM),
@@ -577,7 +569,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                                       value: '$_currentStreak',
                                       subtitle: 'Days',
                                       icon: Icons.local_fire_department_rounded,
-                                      color: AppStyles.warning,
+                                      color: context.warning,
                                     ),
                                   ),
                                 ],
@@ -595,19 +587,13 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                       width: double.infinity,
                       padding: const EdgeInsets.all(AppStyles.spaceLG),
                       decoration: BoxDecoration(
-                        color: AppStyles.card,
+                        color: context.card,
                         borderRadius: BorderRadius.circular(AppStyles.radiusMD),
                         border: Border.all(
-                          color: AppStyles.border,
+                          color: context.border,
                           width: 1,
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppStyles.black.withOpacity(0.02),
-                            blurRadius: 4,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
+                        boxShadow: context.shadowSM,
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -616,7 +602,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                             children: [
                               Icon(
                                 Icons.trending_up_rounded,
-                                color: AppStyles.mutedForeground,
+                                color: context.mutedForeground,
                                 size: 18,
                               ),
                               const SizedBox(width: AppStyles.spaceXS),
@@ -641,19 +627,13 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                       width: double.infinity,
                       padding: const EdgeInsets.all(AppStyles.spaceLG),
                       decoration: BoxDecoration(
-                        color: AppStyles.card,
+                        color: context.card,
                         borderRadius: BorderRadius.circular(AppStyles.radiusMD),
                         border: Border.all(
-                          color: AppStyles.border,
+                          color: context.border,
                           width: 1,
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppStyles.black.withOpacity(0.02),
-                            blurRadius: 4,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
+                        boxShadow: context.shadowSM,
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -662,7 +642,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                             children: [
                               Icon(
                                 Icons.schedule_rounded,
-                                color: AppStyles.mutedForeground,
+                                color: context.mutedForeground,
                                 size: 18,
                               ),
                               const SizedBox(width: AppStyles.spaceXS),
@@ -676,7 +656,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                               Text(
                                 '${DateTime.now().day} ${_getMonthName(DateTime.now().month)}',
                                 style: AppStyles.bodySmall.copyWith(
-                                  color: AppStyles.mutedForeground,
+                                  color: context.mutedForeground,
                                 ),
                               ),
                             ],
@@ -694,24 +674,25 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                       width: double.infinity,
                       padding: const EdgeInsets.all(AppStyles.spaceLG),
                       decoration: BoxDecoration(
-                        color: AppStyles.accent.withOpacity(0.3),
+                        color: context.accent,
                         borderRadius: BorderRadius.circular(AppStyles.radiusMD),
                         border: Border.all(
-                          color: AppStyles.primary.withOpacity(0.2),
+                          color: context.border,
                           width: 1,
                         ),
+                        boxShadow: context.shadowSM,
                       ),
                       child: Row(
                         children: [
                           Container(
                             padding: const EdgeInsets.all(AppStyles.spaceXS),
                             decoration: BoxDecoration(
-                              color: AppStyles.primary.withOpacity(0.1),
+                              color: context.primary.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(AppStyles.radiusSM),
                             ),
                             child: Icon(
                               Icons.lightbulb_rounded,
-                              color: AppStyles.primary,
+                              color: context.primary,
                               size: 20,
                             ),
                           ),
@@ -724,14 +705,14 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                                   'Study Tip',
                                   style: AppStyles.bodyMedium.copyWith(
                                     fontWeight: FontWeight.w600,
-                                    color: AppStyles.primary,
+                                    color: context.primary,
                                   ),
                                 ),
                                 const SizedBox(height: AppStyles.spaceXS),
                                 Text(
                                   _getStudyTip(),
                                   style: AppStyles.bodySmall.copyWith(
-                                    color: AppStyles.foreground,
+                                    color: context.foreground,
                                     height: 1.4,
                                   ),
                                 ),
@@ -768,19 +749,13 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
     return Container(
       padding: const EdgeInsets.all(AppStyles.spaceLG),
       decoration: BoxDecoration(
-        color: AppStyles.card,
+        color: context.card,
         borderRadius: BorderRadius.circular(AppStyles.radiusMD),
         border: Border.all(
-          color: AppStyles.border,
+          color: context.border,
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: AppStyles.black.withOpacity(0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        boxShadow: context.shadowSM,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -793,12 +768,12 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                 title,
                 style: AppStyles.bodyMedium.copyWith(
                   fontWeight: FontWeight.w500,
-                  color: AppStyles.mutedForeground,
+                  color: context.mutedForeground,
                 ),
               ),
               Icon(
                 icon,
-                color: AppStyles.mutedForeground,
+                color: context.mutedForeground,
                 size: 18,
               ),
             ],
@@ -815,7 +790,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
           Text(
             subtitle,
             style: AppStyles.bodySmall.copyWith(
-              color: AppStyles.mutedForeground,
+              color: context.mutedForeground,
             ),
           ),
         ],
@@ -840,7 +815,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
             Text(
               '${(progress * 100).toInt()}%',
               style: AppStyles.bodySmall.copyWith(
-                color: AppStyles.mutedForeground,
+                color: context.mutedForeground,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -850,7 +825,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
         Container(
           height: 6,
           decoration: BoxDecoration(
-            color: AppStyles.muted,
+            color: context.muted,
             borderRadius: BorderRadius.circular(3),
           ),
           child: FractionallySizedBox(
@@ -875,7 +850,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
         Text(
           'No subjects found. Add subjects in the Planner to see progress.',
           style: AppStyles.bodySmall.copyWith(
-            color: AppStyles.mutedForeground,
+            color: context.mutedForeground,
           ),
         ),
       ];
@@ -906,7 +881,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
         Text(
           'No events scheduled for today. Add events in the Calendar.',
           style: AppStyles.bodySmall.copyWith(
-            color: AppStyles.mutedForeground,
+            color: context.mutedForeground,
           ),
         ),
       ];
@@ -1012,14 +987,14 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                   subject,
                   style: AppStyles.bodyMedium.copyWith(
                     fontWeight: FontWeight.w500,
-                    color: isBreak ? AppStyles.mutedForeground : AppStyles.foreground,
+                    color: isBreak ? context.mutedForeground : context.foreground,
                   ),
                 ),
                 if (!isBreak && topic.isNotEmpty) ...[
                   Text(
                     topic,
                     style: AppStyles.bodySmall.copyWith(
-                      color: AppStyles.mutedForeground,
+                      color: context.mutedForeground,
                     ),
                   ),
                 ],
@@ -1091,10 +1066,10 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
           Container(
             width: context.responsive(mobile: 200, tablet: 250, desktop: 280),
             decoration: BoxDecoration(
-              color: AppStyles.card,
+              color: context.card,
               border: Border(
                 right: BorderSide(
-                  color: AppStyles.border.withOpacity(0.3),
+                  color: context.border.withOpacity(0.3),
                   width: 1,
                 ),
               ),
@@ -1133,7 +1108,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
               Container(
                 padding: EdgeInsets.all(context.spacing(8)),
                 decoration: BoxDecoration(
-                  color: AppStyles.primary.withOpacity(0.1),
+                  color: context.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Image.asset(
@@ -1145,7 +1120,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                     return Icon(
                       Icons.psychology_rounded,
                       size: context.responsive(mobile: 24, tablet: 28, desktop: 32),
-                      color: AppStyles.primary,
+                      color: context.primary,
                     );
                   },
                 ),
@@ -1155,7 +1130,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
                 'SIGMA',
                 style: context.scaleTextStyle(
                   AppStyles.sectionHeader.copyWith(
-                    color: AppStyles.primary,
+                    color: context.primary,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -1210,8 +1185,8 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
           child: ElevatedButton(
             onPressed: _onCenterFabPressed,
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppStyles.primary,
-              foregroundColor: Colors.white,
+              backgroundColor: context.primary,
+              foregroundColor: context.primaryForeground,
               padding: EdgeInsets.symmetric(
                 horizontal: context.spacing(20),
                 vertical: context.spacing(16),
@@ -1258,10 +1233,10 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
           vertical: context.spacing(12),
         ),
         decoration: BoxDecoration(
-          color: isSelected ? AppStyles.primary.withOpacity(0.1) : null,
+          color: isSelected ? context.primary.withOpacity(0.1) : null,
           borderRadius: BorderRadius.circular(12),
           border: isSelected ? Border.all(
-            color: AppStyles.primary.withOpacity(0.3),
+            color: context.primary.withOpacity(0.3),
             width: 1,
           ) : null,
         ),
@@ -1270,7 +1245,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
             Icon(
               icon,
               size: context.responsive(mobile: 18, tablet: 20, desktop: 24),
-              color: isSelected ? AppStyles.primary : AppStyles.mutedForeground,
+              color: isSelected ? context.primary : context.mutedForeground,
             ),
             SizedBox(width: context.spacing(12)),
             Text(
@@ -1278,7 +1253,7 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
               style: context.scaleTextStyle(
                 AppStyles.bodyMedium.copyWith(
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  color: isSelected ? AppStyles.primary : AppStyles.foreground,
+                  color: isSelected ? context.primary : context.foreground,
                 ),
               ),
             ),
