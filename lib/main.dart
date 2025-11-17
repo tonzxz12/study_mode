@@ -136,11 +136,28 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
     _initializeBackgroundMonitoring();
   }
 
+  // Reload blocked apps and restart monitoring
+  Future<void> _reloadBlockedAppsAndMonitoring() async {
+    try {
+      await AppBlockingService.loadBlockedApps();
+      await AppBlockingService.ensurePersistentMonitoring();
+      print('🔥 Blocked apps reloaded and monitoring restarted');
+    } catch (e) {
+      print('⚠️ Error reloading blocked apps: $e');
+    }
+  }
+
   // Initialize background monitoring for app blocking
   Future<void> _initializeBackgroundMonitoring() async {
     try {
+      // Load blocked apps from database first
+      await AppBlockingService.loadBlockedApps();
+      
+      // Start monitoring if apps are blocked
       await AppBlockingService.ensurePersistentMonitoring();
+      
       print('🔥 Background monitoring initialized in main app');
+      print('📊 Blocked apps loaded: ${AppBlockingService.getBlockedApps()}');
     } catch (e) {
       print('⚠️ Error initializing background monitoring: $e');
     }
@@ -322,9 +339,9 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
     
     switch (state) {
       case AppLifecycleState.resumed:
-        // App came back to foreground - ensure monitoring continues
-        AppBlockingService.ensurePersistentMonitoring();
-        print('🔥 App resumed - Background monitoring ensured');
+        // App came back to foreground - reload blocked apps and ensure monitoring
+        _reloadBlockedAppsAndMonitoring();
+        print('🔥 App resumed - Reloading blocked apps and monitoring');
         break;
       case AppLifecycleState.paused:
         // App going to background - this is when blocking should be most active

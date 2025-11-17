@@ -24,6 +24,14 @@ class AppBlockingService {
     await _initializeBackgroundService();
     // Load saved blocked apps and restore monitoring if needed
     await loadBlockedApps();
+    
+    // Auto-start monitoring if there are blocked apps
+    if (_blockedPackages.isNotEmpty) {
+      print('🔥 AUTO-STARTING monitoring with ${_blockedPackages.length} blocked apps');
+      await startMonitoring(_blockedPackages);
+    } else {
+      print('ℹ️ No blocked apps found - monitoring will start when apps are blocked');
+    }
   }
 
   static Future<void> _initializeBackgroundService() async {
@@ -134,10 +142,9 @@ class AppBlockingService {
       _blockedPackages.add(packageName);
       await _saveBlockedApps();
       
-      // Restart monitoring with updated list
-      if (_isMonitoring) {
-        await startMonitoring(_blockedPackages);
-      }
+      // Immediately start monitoring with updated list
+      await startMonitoring(_blockedPackages);
+      print('🔥 Added $packageName to blocking - monitoring started automatically');
     }
   }
 
@@ -349,8 +356,6 @@ class AppBlockingService {
               
               await _performInstantBlocking(packageName);
               return; // Exit immediately after instant blocking
-            return; // Exit immediately after instant blocking
-              print('⚡ $appName blocked via usage stats');
             }
           }
         }

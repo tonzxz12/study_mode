@@ -56,7 +56,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
     WidgetsBinding.instance.addObserver(this);
     _loadSavedSettings();
     _checkPermissions();
-    // Ensure background monitoring continues when app is opened
+    // Load blocked apps and ensure background monitoring continues
+    _autoLoadBlockedApps();
     AppBlockingService.ensurePersistentMonitoring();
   }
 
@@ -64,6 +65,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  // Auto-load blocked apps from database
+  Future<void> _autoLoadBlockedApps() async {
+    try {
+      await AppBlockingService.loadBlockedApps();
+      final blockedApps = AppBlockingService.getBlockedApps();
+      
+      if (blockedApps.isNotEmpty) {
+        // Update UI to reflect loaded blocked apps
+        setState(() {
+          for (var app in _blockableApps) {
+            app['blocked'] = blockedApps.contains(app['package']);
+          }
+        });
+        
+        // Auto-start monitoring
+        await AppBlockingService.startMonitoring(blockedApps);
+        print('🔥 AUTO-LOADED ${blockedApps.length} blocked apps and started monitoring');
+      }
+    } catch (e) {
+      print('⚠️ Error auto-loading blocked apps: $e');
+    }
   }
 
   @override
