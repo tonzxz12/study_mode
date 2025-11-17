@@ -2,6 +2,7 @@ package com.studymode.app.study_mode_v2
 
 import android.app.ActivityManager
 import android.app.admin.DevicePolicyManager
+import android.app.usage.UsageStatsManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -100,6 +101,45 @@ class MainActivity : FlutterActivity() {
                         result.error("ERROR", "Failed to show toast", e.message)
                     }
                 }
+                "hasUsagePermission" -> {
+                    try {
+                        val hasPermission = checkUsageAccessPermission()
+                        result.success(hasPermission)
+                    } catch (e: Exception) {
+                        result.error("ERROR", "Failed to check usage permission", e.message)
+                    }
+                }
+                "queryUsageStats" -> {
+                    try {
+                        val startTime = call.argument<Long>("startTime") ?: 0L
+                        val endTime = call.argument<Long>("endTime") ?: System.currentTimeMillis()
+                        val usageStats = queryUsageStats(startTime, endTime)
+                        result.success(usageStats)
+                    } catch (e: Exception) {
+                        result.error("ERROR", "Failed to query usage stats", e.message)
+                    }
+                }
+                "getRunningTasks" -> {
+                    try {
+                        val runningTasks = getRunningTasks()
+                        result.success(runningTasks)
+                    } catch (e: Exception) {
+                        result.error("ERROR", "Failed to get running tasks", e.message)
+                    }
+                }
+                "forceStopApp" -> {
+                    try {
+                        val packageName = call.argument<String>("packageName")
+                        if (packageName != null) {
+                            forceStopApplication(packageName)
+                            result.success(true)
+                        } else {
+                            result.error("ERROR", "Package name is required", null)
+                        }
+                    } catch (e: Exception) {
+                        result.error("ERROR", "Failed to force stop app", e.message)
+                    }
+                }
                 else -> {
                     result.notImplemented()
                 }
@@ -164,31 +204,36 @@ class MainActivity : FlutterActivity() {
                 println("⚠️ Failed to kill background processes: ${e.message}")
             }
             
-            // Method 2: Force kill running processes if we have admin rights
+            // Method 2: ULTRA-AGGRESSIVE process termination if we have admin rights
             if (devicePolicyManager.isAdminActive(componentName)) {
                 try {
                     val runningApps = activityManager.runningAppProcesses
                     runningApps?.forEach { processInfo ->
-                        if (processInfo.processName.contains(packageName)) {
+                        if (processInfo.processName.contains(packageName) || processInfo.processName == packageName) {
+                            // Kill with extreme prejudice
                             android.os.Process.killProcess(processInfo.pid)
-                            println("🔪 Force killed process ${processInfo.processName}")
+                            android.os.Process.sendSignal(processInfo.pid, android.os.Process.SIGNAL_KILL)
+                            println("💀💀 ULTRA-KILLED process ${processInfo.processName} (PID: ${processInfo.pid})")
                         }
                     }
                 } catch (e: Exception) {
-                    println("⚠️ Failed to force kill processes: ${e.message}")
+                    println("⚠️ Failed to ultra-kill processes: ${e.message}")
                 }
             }
             
-            // Method 3: Send home intent to clear app from foreground
+            // Method 3: INSTANT home screen clearing
             val homeIntent = Intent(Intent.ACTION_MAIN).apply {
                 addCategory(Intent.CATEGORY_HOME)
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or 
+                       Intent.FLAG_ACTIVITY_CLEAR_TASK or 
+                       Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                       Intent.FLAG_ACTIVITY_SINGLE_TOP
             }
             startActivity(homeIntent)
             
-            println("💀 Kill attempt completed for $packageName")
+            println("💀💀💀 ULTRA-KILL completed for $packageName")
         } catch (e: Exception) {
-            println("❌ Error killing app $packageName: ${e.message}")
+            println("❌ Error ultra-killing app $packageName: ${e.message}")
         }
     }
     
@@ -224,6 +269,139 @@ class MainActivity : FlutterActivity() {
             println("📢 Toast shown: $message")
         } catch (e: Exception) {
             println("❌ Error showing toast: ${e.message}")
+        }
+    }
+
+    private fun checkUsageAccessPermission(): Boolean {
+        return try {
+            val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+            if (usageStatsManager != null) {
+                val endTime = System.currentTimeMillis()
+                val startTime = endTime - (1000 * 60 * 60) // Last hour
+                
+                // Try to query usage stats - if permission is granted, this will return a list
+                // If permission is not granted, it will return an empty list or throw an exception
+                val usageStatsList = usageStatsManager.queryUsageStats(
+                    UsageStatsManager.INTERVAL_DAILY,
+                    startTime,
+                    endTime
+                )
+                
+                // If we can query usage stats and get a non-empty list, permission is granted
+                val hasPermission = usageStatsList.isNotEmpty()
+                println("📱 Usage Access Permission: $hasPermission")
+                return hasPermission
+            } else {
+                println("❌ UsageStatsManager not available")
+                return false
+            }
+        } catch (e: Exception) {
+            println("❌ Error checking usage permission: ${e.message}")
+            return false
+        }
+    }
+
+    private fun queryUsageStats(startTime: Long, endTime: Long): List<Map<String, Any>> {
+        return try {
+            val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+            if (usageStatsManager == null) {
+                println("❌ UsageStatsManager not available for querying")
+                return emptyList()
+            }
+
+            val usageStatsList = usageStatsManager.queryUsageStats(
+                UsageStatsManager.INTERVAL_BEST,
+                startTime,
+                endTime
+            )
+
+            val result = mutableListOf<Map<String, Any>>()
+            
+            for (usageStats in usageStatsList) {
+                if (usageStats.packageName != null && 
+                    usageStats.lastTimeUsed > 0 && 
+                    usageStats.lastTimeUsed >= startTime) {
+                    
+                    val usageMap = mapOf(
+                        "packageName" to usageStats.packageName,
+                        "lastTimeUsed" to usageStats.lastTimeUsed,
+                        "totalTimeInForeground" to usageStats.totalTimeInForeground,
+                        "firstTimeStamp" to usageStats.firstTimeStamp,
+                        "lastTimeStamp" to usageStats.lastTimeStamp
+                    )
+                    result.add(usageMap)
+                }
+            }
+            
+            println("📊 Queried ${result.size} usage stats from ${usageStatsList.size} total")
+            return result
+        } catch (e: Exception) {
+            println("❌ Error querying usage stats: ${e.message}")
+            return emptyList()
+        }
+    }
+    
+    private fun getRunningTasks(): List<Map<String, Any>> {
+        return try {
+            val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val result = mutableListOf<Map<String, Any>>()
+            
+            // Get running app processes - include all foreground and visible apps
+            val runningApps = activityManager.runningAppProcesses
+            runningApps?.forEach { processInfo ->
+                // Check for foreground and visible importance levels
+                if (processInfo.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE) {
+                    val taskMap = mapOf(
+                        "packageName" to processInfo.processName,
+                        "pid" to processInfo.pid,
+                        "importance" to processInfo.importance
+                    )
+                    result.add(taskMap)
+                    println("🏃 Active process: ${processInfo.processName} (importance: ${processInfo.importance})")
+                }
+            }
+            
+            println("🏃 Found ${result.size} active processes")
+            return result
+        } catch (e: Exception) {
+            println("❌ Error getting running tasks: ${e.message}")
+            return emptyList()
+        }
+    }
+    
+    private fun forceStopApplication(packageName: String) {
+        try {
+            val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            
+            // Method 1: Force stop with device admin if available
+            if (devicePolicyManager.isAdminActive(componentName)) {
+                try {
+                    // Try multiple termination methods
+                    activityManager.killBackgroundProcesses(packageName)
+                    
+                    // Force kill all processes with this package name
+                    val runningProcesses = activityManager.runningAppProcesses
+                    runningProcesses?.forEach { processInfo ->
+                        if (processInfo.processName.contains(packageName)) {
+                            android.os.Process.killProcess(processInfo.pid)
+                            println("⚔️ Force killed process ${processInfo.processName} (PID: ${processInfo.pid})")
+                        }
+                    }
+                } catch (e: Exception) {
+                    println("⚠️ Device admin force stop failed: ${e.message}")
+                }
+            }
+            
+            // Method 2: Send home intent to clear from foreground
+            val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
+            startActivity(homeIntent)
+            
+            println("💥 Force stop completed for $packageName")
+        } catch (e: Exception) {
+            println("❌ Error force stopping $packageName: ${e.message}")
         }
     }
 }

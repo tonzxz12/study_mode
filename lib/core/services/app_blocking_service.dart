@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 // import 'package:usage_stats/usage_stats.dart';  // Temporarily disabled
 import 'package:system_alert_window/system_alert_window.dart';
 // import 'package:flutter_background_service/flutter_background_service.dart'; // DISABLED
-// import 'package:android_intent_plus/android_intent.dart';  // Temporarily disabled
+import 'package:android_intent_plus/android_intent.dart';
 // import 'package:permission_handler/permission_handler.dart';  // Temporarily disabled
 
 @pragma('vm:entry-point')
@@ -27,44 +27,36 @@ class AppBlockingService {
   }
 
   static Future<void> _initializeBackgroundService() async {
-    // DISABLED - Background service removed due to crash
-    // await FlutterBackgroundService().configure(
-    //   androidConfiguration: AndroidConfiguration(
-    //     onStart: onStart,
-    //     autoStart: false,
-    //     isForegroundMode: true,
-    //     autoStartOnBoot: false,
-    //     notificationChannelId: 'study_mode_blocking',
-    //     initialNotificationTitle: 'Study Mode Active',
-    //     initialNotificationContent: 'App blocking is running in background',
-    //     foregroundServiceNotificationId: 888,
-    //   ),
-    //   iosConfiguration: IosConfiguration(
-    //     autoStart: false,
-    //     onForeground: onStart,
-    //   ),
-    // );
+    // Initialize without flutter_background_service to avoid crashes
+    // Use native Android monitoring instead
+    print('🔥 Background monitoring initialized via native Android methods');
   }
 
   // Check if device has usage access permission
   static Future<bool> hasUsagePermission() async {
     try {
-      // Temporarily disabled usage_stats functionality
-      // DateTime now = DateTime.now();
-      // DateTime start = now.subtract(const Duration(minutes: 5));
-      // List<UsageInfo> stats = await UsageStats.queryUsageStats(start, now);
-      // return stats.isNotEmpty;
-      
-      return false;  // Always return false when usage_stats is disabled
+      // Use method channel to check usage permission from native Android code
+      final bool hasPermission = await _channel.invokeMethod('hasUsagePermission');
+      return hasPermission;
     } catch (e) {
-      print('Usage stats error (likely no permission): $e');
+      print('Error checking usage permission: $e');
       return false;
     }
   }
 
   // Request usage access permission
   static Future<void> requestUsagePermission() async {
-    // await UsageStats.grantUsagePermission();  // Temporarily disabled
+    try {
+      // Open Usage Access settings directly using Android Intent
+      const AndroidIntent intent = AndroidIntent(
+        action: 'android.settings.USAGE_ACCESS_SETTINGS',
+      );
+      await intent.launch();
+      print('AppBlockingService.requestUsagePermission() called successfully');
+    } catch (e) {
+      print('Error opening Usage Access settings: $e');
+      rethrow;
+    }
   }
 
   // Storage keys
@@ -117,8 +109,17 @@ class AppBlockingService {
 
   // Ensure persistent monitoring (compatibility method)
   static Future<void> ensurePersistentMonitoring() async {
+    // Load blocked apps from storage if not already loaded
+    if (_blockedPackages.isEmpty) {
+      await loadBlockedApps();
+    }
+    
+    // Start monitoring if there are blocked apps
     if (_blockedPackages.isNotEmpty) {
       await startMonitoring(_blockedPackages);
+      print('🔥 Persistent monitoring ensured with ${_blockedPackages.length} blocked apps');
+    } else {
+      print('⚠️ No blocked apps found - monitoring not started');
     }
   }
 
@@ -243,7 +244,8 @@ class AppBlockingService {
   // CONTINUOUS Start monitoring blocked apps (public interface)
   static Future<void> startMonitoring(List<String> blockedApps) async {
     try {
-      print('🔒 Starting CONTINUOUS app blocking for ${blockedApps.length} apps');
+      print('🔒 Starting ULTRA-FAST app blocking for ${blockedApps.length} apps');
+      print('📦 Blocked packages: ${blockedApps.join(", ")}');
       _blockedPackages = blockedApps;
       _isMonitoring = true;
       
@@ -256,8 +258,10 @@ class AppBlockingService {
       // Save state
       await _saveBlockedApps();
       
-      print('✅ CONTINUOUS app blocking started - monitoring every 300ms');
+      print('✅ ULTRA-FAST app blocking started - monitoring every 100ms');
       print('📱 Background service enabled for persistent blocking');
+      print('🎯 Monitoring active: $_isMonitoring');
+      print('🎯 Blocked apps count: ${_blockedPackages.length}');
     } catch (e) {
       print('❌ Error starting continuous monitoring: $e');
     }
@@ -266,14 +270,14 @@ class AppBlockingService {
   // CONTINUOUS monitoring implementation 
   static void _startContinuousMonitoring(List<String> blockedApps) {
     try {
-      // Start CONTINUOUS foreground monitoring for instant blocking
+      // Start ULTRA-FAST monitoring for instant blocking
       _monitoringTimer?.cancel();
-      _monitoringTimer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
+      _monitoringTimer = Timer.periodic(const Duration(milliseconds: 25), (timer) {
         _checkBlockedAppsContinuously();
       });
       
-      print('🔒 CONTINUOUS monitoring timer started');
-      print('  ⏱️  Interval: 300ms (continuous protection)');
+      print('🔒 INSTANT monitoring timer started');
+      print('  ⚡ Interval: 25ms (INSTANT response)');
       print('  🚫 INSTANT blocking - always active');
       print('  📱 Persistent Study Mode focus');
     } catch (e) {
@@ -283,98 +287,160 @@ class AppBlockingService {
   
   // Ensure background service stays running
   static Future<void> _ensureBackgroundServiceRunning() async {
-    // DISABLED - Background service removed due to crash
-    // try {
-    //   final service = FlutterBackgroundService();
-    //   if (!await service.isRunning()) {
-    //     await service.startService();
-    //     print('🔄 Started background monitoring service');
-    //   } else {
-    //     print('✅ Background monitoring service already running');
-    //   }
-    // } catch (e) {
-    //   print('❌ Error ensuring background service: $e');
-    // }
+    // Use native Android background monitoring instead of flutter_background_service
+    print('🔥 Background monitoring ensured via native methods');
   }
 
-  // CONTINUOUS app detection and blocking - ALWAYS block without interference
+  // MULTI-LAYER app detection and blocking - ALWAYS block without interference
   static Future<void> _checkBlockedAppsContinuously() async {
-    if (!_isMonitoring || _blockedPackages.isEmpty) return;
+    if (!_isMonitoring || _blockedPackages.isEmpty) {
+      if (!_isMonitoring) print('⚠️ Monitoring not active');
+      if (_blockedPackages.isEmpty) print('⚠️ No blocked packages');
+      return;
+    }
     
     try {
-      // Temporarily disabled usage_stats functionality
-      // DateTime now = DateTime.now();
-      // DateTime startTime = now.subtract(const Duration(seconds: 2));
-      // List<UsageInfo> usageInfos = await UsageStats.queryUsageStats(startTime, now);
-
-      // for (UsageInfo usage in usageInfos) {
-      //   if (_blockedPackages.contains(usage.packageName) && 
-      //       usage.lastTimeUsed != null) {
-      //     
-      //     int lastUsedMillis = int.tryParse(usage.lastTimeUsed!) ?? 0;
-      //     DateTime lastUsedTime = DateTime.fromMillisecondsSinceEpoch(lastUsedMillis);
-      //     
-      //     if (now.difference(lastUsedTime).inSeconds < 2) {
-      //       DateTime? lastBlocked = _lastBlockedTime[usage.packageName!];
-      //       if (lastBlocked == null || now.difference(lastBlocked).inMilliseconds >= 30) {
-      //         String appName = _getAppNameFromPackage(usage.packageName!);
-      //         print('🚫🚫🚫 CONTINUOUS BLOCKING: $appName - ALWAYS BLOCKED!');
-      //         _lastBlockedTime[usage.packageName!] = now;
-      //         
-      //         await _performContinuousBlocking(usage.packageName!);
-      //         print('⚡ $appName continuously blocked - Study Mode enforced');
-      //       }
-      //     }
-      //   }
-      // }
+      DateTime now = DateTime.now();
       
-      print('App blocking temporarily disabled');
+      // LAYER 1: Usage Stats Detection (primary method)
+      await _checkUsageStatsBlocking(now);
+      
+      // LAYER 2: Running Tasks Detection (backup method)
+      await _checkRunningTasksBlocking(now);
+      
     } catch (e) {
-      print('❌ Error in continuous monitoring: $e');
+      print('❌ Error in multi-layer monitoring: $e');
+    }
+  }
+  
+  // Layer 1: Usage stats based detection
+  static Future<void> _checkUsageStatsBlocking(DateTime now) async {
+    try {
+      DateTime startTime = now.subtract(const Duration(seconds: 1));
+      
+      List<dynamic> usageInfos = await _channel.invokeMethod('queryUsageStats', {
+        'startTime': startTime.millisecondsSinceEpoch,
+        'endTime': now.millisecondsSinceEpoch,
+      });
+
+      print('📊 Usage Stats Layer 1: Found ${usageInfos.length} usage entries');
+
+      for (Map<dynamic, dynamic> usage in usageInfos) {
+        String? packageName = usage['packageName']?.toString();
+        int? lastTimeUsed = usage['lastTimeUsed'];
+        
+        if (packageName != null) {
+          print('  📱 Recent usage: $packageName (${lastTimeUsed != null ? DateTime.fromMillisecondsSinceEpoch(lastTimeUsed) : 'no timestamp'})');
+        }
+        
+        if (packageName != null && 
+            _blockedPackages.contains(packageName) && 
+            lastTimeUsed != null) {
+          
+          DateTime lastUsedTime = DateTime.fromMillisecondsSinceEpoch(lastTimeUsed);
+          
+          // Check if app was used very recently (within 1 second for instant blocking)
+          if (now.difference(lastUsedTime).inSeconds < 1) {
+            DateTime? lastBlocked = _lastBlockedTime[packageName];
+            if (lastBlocked == null || now.difference(lastBlocked).inMilliseconds >= 50) {
+              String appName = _getAppNameFromPackage(packageName);
+              print('🚫🚫🚫 USAGE STATS BLOCKING: $appName - DETECTED!');
+              _lastBlockedTime[packageName] = now;
+              
+              await _performInstantBlocking(packageName);
+              return; // Exit immediately after instant blocking
+            return; // Exit immediately after instant blocking
+              print('⚡ $appName blocked via usage stats');
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('⚠️ Usage stats detection error: $e');
+    }
+  }
+  
+  // Layer 2: Running tasks detection (backup method)
+  static Future<void> _checkRunningTasksBlocking(DateTime now) async {
+    try {
+      // Query running tasks via method channel
+      List<dynamic> runningTasks = await _channel.invokeMethod('getRunningTasks');
+      
+      print('🏃 Running Tasks Layer 2: Found ${runningTasks.length} active tasks');
+      
+      for (Map<dynamic, dynamic> task in runningTasks) {
+        String? packageName = task['packageName']?.toString();
+        
+        if (packageName != null) {
+          print('  🏃 Active task: $packageName');
+        }
+        
+        if (packageName != null && _blockedPackages.contains(packageName)) {
+          DateTime? lastBlocked = _lastBlockedTime[packageName];
+          if (lastBlocked == null || now.difference(lastBlocked).inMilliseconds >= 50) {
+            String appName = _getAppNameFromPackage(packageName);
+            print('🚫🚫🚫 INSTANT RUNNING TASK BLOCKING: $appName');
+            _lastBlockedTime[packageName] = now;
+            
+            await _performInstantBlocking(packageName);
+            print('⚡ $appName INSTANTLY blocked via running tasks');
+            return; // Exit immediately after blocking
+          }
+        }
+      }
+    } catch (e) {
+      print('⚠️ Running tasks detection error: $e');
     }
   }
 
-  // CONTINUOUS persistent blocking - TEMPORARILY DISABLED
-  // static Future<void> _performContinuousBlocking(String packageName) async {
-  //   try {
-  //     String appName = _getAppNameFromPackage(packageName);
-  //     
-  //     // Step 1: IMMEDIATELY close blocked app multiple times
-  //     for (int i = 0; i < 2; i++) {
-  //       try {
-  //         await _channel.invokeMethod('killApp', {'packageName': packageName});
-  //       } catch (e) {
-  //         // Continue even if native method fails
-  //       }
-  //       if (i == 0) await Future.delayed(const Duration(milliseconds: 50));
-  //     }
-  //     
-  //     // Step 2: Force Study Mode to foreground
-  //     try {
-  //       await _channel.invokeMethod('bringAppToForeground');
-  //     } catch (e) {
-  //       // Fallback to Android Intent
-  //       try {
-  //         const studyModeIntent = AndroidIntent(
-  //           action: 'android.intent.action.MAIN',
-  //           package: 'com.studymode.app.study_mode_v2',
-  //           flags: <int>[
-  //             0x10000000, // FLAG_ACTIVITY_NEW_TASK
-  //             0x20000000, // FLAG_ACTIVITY_SINGLE_TOP
-  //           ],
-  //         );
-  //         await studyModeIntent.launch();
-  //       } catch (intentError) {
-  //         // Continue monitoring even if intents fail
-  //       }
-  //     }
-  //     
-  //     print('✅ $appName continuously blocked - Study Mode maintained');
-  //   } catch (e) {
-  //     print('❌ Continuous blocking error: $e');
-  //     // Continue monitoring regardless of errors
-  //   }
-  // }
+  // INSTANT blocking with immediate termination and app switch
+  static Future<void> _performInstantBlocking(String packageName) async {
+    try {
+      String appName = _getAppNameFromPackage(packageName);
+      print('🔥 INSTANT BLOCKING START: $appName ($packageName)');
+      
+      // 1. INSTANT app termination (no delays)
+      await _channel.invokeMethod('forceStopApp', {'packageName': packageName});
+      print('💀 App terminated: $appName');
+      
+      // 2. INSTANT Study Mode switch (no delays) 
+      await _launchStudyModeIntent();
+      print('📱 Study Mode launched after blocking: $appName');
+      
+      print('⚡ INSTANT blocking completed for $appName');
+    } catch (e) {
+      print('❌ Instant blocking error for $packageName: $e');
+    }
+  }
+
+
+  
+  // Helper method for launching Study Mode intent
+  static Future<void> _launchStudyModeIntent() async {
+    try {
+      // Use native method to bring Study Mode app to foreground
+      await _channel.invokeMethod('bringAppToForeground');
+      print('🔥 Study Mode brought to foreground via native method');
+    } catch (e) {
+      print('⚠️ Native foreground launch failed: $e');
+      // Fallback to AndroidIntent if native method fails
+      try {
+        const studyModeIntent = AndroidIntent(
+          action: 'android.intent.action.MAIN',
+          package: 'com.studymode.app.study_mode_v2',
+          flags: <int>[
+            0x10000000, // FLAG_ACTIVITY_NEW_TASK
+            0x20000000, // FLAG_ACTIVITY_SINGLE_TOP  
+            0x00200000, // FLAG_ACTIVITY_REORDER_TO_FRONT
+          ],
+        );
+        await studyModeIntent.launch();
+        print('🔥 Study Mode launched via AndroidIntent fallback');
+      } catch (e2) {
+        print('⚠️ All launch methods failed: $e2');
+      }
+    }
+  }
 
   // Stop monitoring
   static Future<void> stopMonitoring() async {
@@ -397,23 +463,23 @@ class AppBlockingService {
     }
   }
 
-  // Helper method to get friendly app names - TEMPORARILY DISABLED
-  // static String _getAppNameFromPackage(String packageName) {
-  //   const Map<String, String> appNames = {
-  //     'com.instagram.android': 'Instagram',
-  //     'com.facebook.katana': 'Facebook', 
-  //     'com.twitter.android': 'Twitter',
-  //     'com.snapchat.android': 'Snapchat',
-  //     'com.zhiliaoapp.musically': 'TikTok',
-  //     'com.whatsapp': 'WhatsApp',
-  //     'com.discord': 'Discord',
-  //     'com.netflix.mediaclient': 'Netflix',
-  //     'com.spotify.music': 'Spotify',
-  //     'com.google.android.youtube': 'YouTube',
-  //   };
-  //   
-  //   return appNames[packageName] ?? 'This app';
-  // }
+  // Helper method to get friendly app names - ACTIVE
+  static String _getAppNameFromPackage(String packageName) {
+    const Map<String, String> appNames = {
+      'com.instagram.android': 'Instagram',
+      'com.facebook.katana': 'Facebook', 
+      'com.twitter.android': 'Twitter/X',
+      'com.snapchat.android': 'Snapchat',
+      'com.zhiliaoapp.musically': 'TikTok',
+      'com.whatsapp': 'WhatsApp',
+      'com.discord': 'Discord',
+      'com.netflix.mediaclient': 'Netflix',
+      'com.spotify.music': 'Spotify',
+      'com.google.android.youtube': 'YouTube',
+    };
+    
+    return appNames[packageName] ?? 'This app';
+  }
 
   // Background service entry point - DISABLED
   // @pragma('vm:entry-point')

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
@@ -71,6 +72,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
     if (state == AppLifecycleState.resumed) {
       // When user returns to the app, refresh permission status
       _checkPermissions();
+      
+      // Show success message if usage permission was just granted
+      Future.delayed(const Duration(milliseconds: 500), () async {
+        final hasPermission = await _checkUsagePermission();
+        if (hasPermission && !_hasUsagePermission) {
+          _hasUsagePermission = true;
+          setState(() {});
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text(
+                  'Usage Access permission granted! App blocking is now available.',
+                  style: TextStyle(color: AppStyles.white),
+                ),
+                backgroundColor: AppStyles.success,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+                ),
+              ),
+            );
+          }
+        }
+      });
     }
   }
 
@@ -1545,28 +1571,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
     );
     
     try {
+      // Call the service method - this should open the Usage Access settings page directly
       await AppBlockingService.requestUsagePermission();
-      await Future.delayed(const Duration(seconds: 1));
-      _hasUsagePermission = await _checkUsagePermission();
-      setState(() {});
       
-      if (_hasUsagePermission) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'Usage Access permission granted!',
-              style: TextStyle(color: AppStyles.white),
-            ),
-            backgroundColor: AppStyles.success,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppStyles.radiusMD)
-            ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Find "Study Mode" in the list and enable it',
+            style: TextStyle(color: AppStyles.white),
           ),
-        );
-      }
+          backgroundColor: AppStyles.info,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+          ),
+        ),
+      );
     } catch (e) {
       print('Error requesting usage permission: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Error opening Usage Access settings',
+            style: TextStyle(color: AppStyles.white),
+          ),
+          backgroundColor: AppStyles.destructive,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+          ),
+        ),
+      );
     }
   }
 
@@ -2100,6 +2136,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
       },
     );
   }
+
+
 
   void _showDataCollectionStatus() {
     showDialog(

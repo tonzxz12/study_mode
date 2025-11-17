@@ -30,6 +30,7 @@ import 'features/timer/timer_screen.dart';
 import 'features/planner/planner_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/auth/auth_wrapper.dart';
+import 'core/services/app_blocking_service.dart';
 
 
 void main() async {
@@ -70,12 +71,12 @@ void main() async {
   }
   
   // Initialize app blocking service safely
-  // Temporarily disabled to fix foreground service notification crash
-  // try {
-  //   await AppBlockingService.initialize();
-  // } catch (e) {
-  //   print('Error initializing app blocking service: $e');
-  // }
+  try {
+    await AppBlockingService.initialize();
+    print('✅ AppBlockingService initialized for background monitoring');
+  } catch (e) {
+    print('⚠️ Error initializing app blocking service: $e');
+  }
   
   runApp(
     const ProviderScope(
@@ -131,9 +132,18 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadRealData();
-    // Temporarily disabled app blocking background service
     // Ensure persistent monitoring when app starts
-    // AppBlockingService.ensurePersistentMonitoring();
+    _initializeBackgroundMonitoring();
+  }
+
+  // Initialize background monitoring for app blocking
+  Future<void> _initializeBackgroundMonitoring() async {
+    try {
+      await AppBlockingService.ensurePersistentMonitoring();
+      print('🔥 Background monitoring initialized in main app');
+    } catch (e) {
+      print('⚠️ Error initializing background monitoring: $e');
+    }
   }
 
   Future<void> _loadRealData() async {
@@ -310,29 +320,26 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     
-    // Temporarily disabled app blocking background service
-    /*
     switch (state) {
       case AppLifecycleState.resumed:
         // App came back to foreground - ensure monitoring continues
         AppBlockingService.ensurePersistentMonitoring();
-        print('App resumed - Background monitoring ensured');
+        print('🔥 App resumed - Background monitoring ensured');
         break;
       case AppLifecycleState.paused:
         // App going to background - this is when blocking should be most active
         AppBlockingService.ensurePersistentMonitoring();
-        print('App paused - Background monitoring active');
+        print('🔥 App paused - Background monitoring CRITICAL');
         break;
       case AppLifecycleState.inactive:
       case AppLifecycleState.detached:
         // App minimized or closed - background service should continue
-        print('App inactive/detached - Background monitoring continues');
+        print('🔥 App inactive/detached - Background monitoring continues');
         break;
       case AppLifecycleState.hidden:
-        print('App hidden - Background monitoring continues');
+        print('🔥 App hidden - Background monitoring continues');
         break;
     }
-    */
   }
 
   // Method to get current screen content
