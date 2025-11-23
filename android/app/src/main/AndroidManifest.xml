@@ -88,7 +88,7 @@
         android:required="false" />
     
     <application
-        android:label="Study Mode"
+        android:label="Sigma"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="true"

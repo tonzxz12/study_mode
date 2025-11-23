@@ -6,6 +6,7 @@ import 'package:system_alert_window/system_alert_window.dart';
 // import 'package:flutter_background_service/flutter_background_service.dart'; // DISABLED
 import 'package:android_intent_plus/android_intent.dart';
 // import 'package:permission_handler/permission_handler.dart';  // Temporarily disabled
+import 'samsung_compatibility_service.dart';
 
 @pragma('vm:entry-point')
 class AppBlockingService {
@@ -21,6 +22,9 @@ class AppBlockingService {
     if (_isInitialized) return;
     _isInitialized = true;
     
+    // Apply Samsung-specific compatibility fixes
+    await SamsungCompatibilityService.applySamsungAppBlockingFix();
+    
     await _initializeBackgroundService();
     // Load saved blocked apps and restore monitoring if needed
     await loadBlockedApps();
@@ -31,6 +35,11 @@ class AppBlockingService {
       await startMonitoring(_blockedPackages);
     } else {
       print('ℹ️ No blocked apps found - monitoring will start when apps are blocked');
+    }
+    
+    // Show Samsung setup instructions if needed
+    if (await SamsungCompatibilityService.isSamsungDevice()) {
+      await SamsungCompatibilityService.showSamsungSetupInstructions();
     }
   }
 
@@ -275,16 +284,23 @@ class AppBlockingService {
   }
 
   // CONTINUOUS monitoring implementation 
-  static void _startContinuousMonitoring(List<String> blockedApps) {
+  static void _startContinuousMonitoring(List<String> blockedApps) async {
     try {
+      // Determine monitoring interval based on device
+      int intervalMs = 25; // Default ultra-fast
+      if (await SamsungCompatibilityService.isSamsungDevice()) {
+        intervalMs = 15; // Even more aggressive for Samsung
+        print('🔧 Samsung device detected - using enhanced monitoring');
+      }
+      
       // Start ULTRA-FAST monitoring for instant blocking
       _monitoringTimer?.cancel();
-      _monitoringTimer = Timer.periodic(const Duration(milliseconds: 25), (timer) {
+      _monitoringTimer = Timer.periodic(Duration(milliseconds: intervalMs), (timer) {
         _checkBlockedAppsContinuously();
       });
       
       print('🔒 INSTANT monitoring timer started');
-      print('  ⚡ Interval: 25ms (INSTANT response)');
+      print('  ⚡ Interval: ${intervalMs}ms (INSTANT response)');
       print('  🚫 INSTANT blocking - always active');
       print('  📱 Persistent Study Mode focus');
     } catch (e) {

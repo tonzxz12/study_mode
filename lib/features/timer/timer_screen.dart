@@ -987,7 +987,15 @@ class _TimerScreenState extends State<TimerScreen> {
   Widget build(BuildContext context) {
     double progress = _initialSeconds > 0 ? (_initialSeconds - _currentSeconds) / _initialSeconds : 0;
     
-    return Scaffold(
+    return WillPopScope(
+      onWillPop: () async {
+        // Show confirmation dialog if timer is running
+        if (_isRunning) {
+          return await _showExitConfirmation();
+        }
+        return true; // Allow exit if timer is not running
+      },
+      child: Scaffold(
       backgroundColor: context.background,
       body: Container(
         color: context.background,
@@ -1307,6 +1315,81 @@ class _TimerScreenState extends State<TimerScreen> {
         ),
       ),
     );
+  }
+
+  Future<bool> _showExitConfirmation() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: context.card,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppStyles.radiusLG),
+        ),
+        title: Row(
+          children: [
+            Icon(
+              Icons.warning_rounded,
+              color: AppStyles.warning,
+              size: 28,
+            ),
+            const SizedBox(width: AppStyles.spaceMD),
+            Text(
+              'Exit Focus Mode?',
+              style: AppStyles.sectionHeader.copyWith(
+                color: context.foreground,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to exit? By leaving now, you will lose your current progress and the timer will reset.',
+          style: AppStyles.bodyMedium.copyWith(
+            color: context.mutedForeground,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            style: TextButton.styleFrom(
+              foregroundColor: context.mutedForeground,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppStyles.spaceLG,
+                vertical: AppStyles.spaceMD,
+              ),
+            ),
+            child: Text(
+              'Cancel',
+              style: AppStyles.bodyMedium.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: AppStyles.destructive,
+              backgroundColor: AppStyles.destructive.withOpacity(0.1),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppStyles.spaceLG,
+                vertical: AppStyles.spaceMD,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppStyles.radiusMD),
+              ),
+            ),
+            child: Text(
+              'Exit & Lose Progress',
+              style: AppStyles.bodyMedium.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 
   Widget _buildStatCard(String title, String value, String subtitle, IconData icon, Color accentColor) {

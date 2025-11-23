@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../core/services/samsung_compatibility_service.dart';
 
 import '../../core/providers/theme_provider.dart';
 import '../../core/services/shortcut_service.dart';
@@ -44,6 +46,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
   bool _hasBackgroundWindowPermission = false;
   bool _hasLockScreenPermission = false;
   bool _hasShortcutPermission = false;
+  
+  // Batch notification tracking
+  Timer? _notificationTimer;
+  List<String> _recentlyBlockedApps = [];
+  List<String> _recentlyUnblockedApps = [];
+  
   List<Map<String, dynamic>> _blockableApps = [
     {'name': 'Facebook', 'package': 'com.facebook.katana', 'blocked': false, 'icon': Icons.facebook, 'color': Color(0xFF1877F2)},
     {'name': 'Instagram', 'package': 'com.instagram.android', 'blocked': false, 'icon': Icons.camera_alt_rounded, 'color': Color(0xFFE4405F)},
@@ -70,6 +78,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
 
   @override
   void dispose() {
+    _notificationTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -499,7 +508,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                       
                       // Study Mode Card
                       _buildModernCard(
-                        title: 'Study Mode',
+                        title: 'Sigma',
                         children: [
                           _buildModernSwitchTile(
                             title: 'Focus Mode',
@@ -536,6 +545,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                         _buildAppBlockingSetupCard(),
                         const SizedBox(height: AppStyles.spaceXL),
                       ],
+                      
+                      // Samsung Compatibility Card
+                      FutureBuilder<bool>(
+                        future: SamsungCompatibilityService.isSamsungDevice(),
+                        builder: (context, snapshot) {
+                          if (snapshot.data == true) {
+                            return Column(
+                              children: [
+                                _buildSamsungCompatibilityCard(),
+                                const SizedBox(height: AppStyles.spaceXL),
+                              ],
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
                       
                       // App Restrictions Card
                       if (_appBlockingEnabled && _allPermissionsGranted()) ...[
@@ -1022,6 +1047,106 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
     );
   }
 
+  Widget _buildSamsungCompatibilityCard() {
+    return FutureBuilder<String?>(
+      future: SamsungCompatibilityService.getSamsungModel(),
+      builder: (context, snapshot) {
+        final model = snapshot.data ?? 'Samsung Device';
+        
+        return _buildModernCard(
+          title: '🔧 Samsung Device Compatibility',
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppStyles.spaceLG),
+              child: Container(
+                padding: const EdgeInsets.all(AppStyles.spaceMD),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      context.primary.withOpacity(0.1),
+                      context.primary.withOpacity(0.05),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(AppStyles.radiusMD),
+                  border: Border.all(
+                    color: context.primary.withOpacity(0.2),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.phone_android_rounded, color: context.primary, size: 20),
+                        const SizedBox(width: AppStyles.spaceSM),
+                        Text(
+                          'Detected: $model',
+                          style: AppStyles.bodyMedium.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: context.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppStyles.spaceSM),
+                    Text(
+                      'Samsung devices require additional setup for reliable app blocking:',
+                      style: AppStyles.bodySmall.copyWith(
+                        color: context.mutedForeground,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: AppStyles.spaceSM),
+                    ...[
+                      '• Add Sigma to Auto-start apps',
+                      '• Disable battery optimization',
+                      '• Allow background activity in Smart Manager',
+                      '• Enable "Allow app while using other apps"',
+                      '• Disable adaptive battery restrictions',
+                    ].map((instruction) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        instruction,
+                        style: AppStyles.bodySmall.copyWith(
+                          color: context.foreground,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    )),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: AppStyles.spaceMD),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppStyles.spaceLG),
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  await SamsungCompatibilityService.requestSamsungAppBlockingPermissions();
+                },
+                icon: const Icon(Icons.settings_applications_rounded),
+                label: const Text('Setup Sigma for Samsung'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: context.primary,
+                  foregroundColor: context.primaryForeground,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppStyles.spaceLG,
+                    vertical: AppStyles.spaceMD,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppStyles.radiusMD),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppStyles.spaceSM),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildAppRestrictionsCard() {
     final blockedCount = _blockableApps.where((app) => app['blocked'] as bool).length;
     
@@ -1235,19 +1360,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
         await AppBlockingSettingsService.updateBlockedApps(userId, blockedApps);
         print('✅ Saved blocked app $packageName to Firebase settings for user: $userId');
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Now blocking ${_blockableApps.firstWhere((app) => app['package'] == packageName)['name']}',
-              style: TextStyle(color: context.primaryForeground),
-            ),
-            backgroundColor: context.destructive,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppStyles.radiusMD)
-            ),
-          ),
-        );
+        // Add to recently blocked list for batch notification
+        final appName = _blockableApps.firstWhere((app) => app['package'] == packageName)['name'];
+        _recentlyBlockedApps.add(appName);
+        _showBatchedNotification();
       } else {
         // Remove app from blocking list
         AppBlockingService.removeBlockedApp(packageName);
@@ -1264,19 +1380,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
         await AppBlockingSettingsService.updateBlockedApps(userId, blockedApps);
         print('✅ Removed blocked app $packageName from Firebase settings for user: $userId');
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Stopped blocking ${_blockableApps.firstWhere((app) => app['package'] == packageName)['name']}',
-              style: const TextStyle(color: AppStyles.white),
-            ),
-            backgroundColor: AppStyles.success,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppStyles.radiusMD)
-            ),
-          ),
-        );
+        // Add to recently unblocked list for batch notification
+        final appName = _blockableApps.firstWhere((app) => app['package'] == packageName)['name'];
+        _recentlyUnblockedApps.add(appName);
+        _showBatchedNotification();
       }
     } catch (e) {
       print('Error updating app blocking: $e');
@@ -1296,7 +1403,61 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
     }
   }
 
-
+  void _showBatchedNotification() {
+    // Cancel existing timer to prevent multiple notifications
+    _notificationTimer?.cancel();
+    
+    // Set a short delay to batch multiple quick toggles
+    _notificationTimer = Timer(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      
+      String message = '';
+      Color backgroundColor = AppStyles.success;
+      
+      if (_recentlyBlockedApps.isNotEmpty && _recentlyUnblockedApps.isNotEmpty) {
+        // Both blocking and unblocking occurred
+        message = 'Updated ${_recentlyBlockedApps.length + _recentlyUnblockedApps.length} apps';
+        backgroundColor = context.primary;
+      } else if (_recentlyBlockedApps.isNotEmpty) {
+        // Only blocking occurred
+        if (_recentlyBlockedApps.length == 1) {
+          message = 'Now blocking ${_recentlyBlockedApps.first}';
+        } else {
+          message = 'Now blocking ${_recentlyBlockedApps.length} apps';
+        }
+        backgroundColor = context.destructive;
+      } else if (_recentlyUnblockedApps.isNotEmpty) {
+        // Only unblocking occurred
+        if (_recentlyUnblockedApps.length == 1) {
+          message = 'Stopped blocking ${_recentlyUnblockedApps.first}';
+        } else {
+          message = 'Stopped blocking ${_recentlyUnblockedApps.length} apps';
+        }
+        backgroundColor = AppStyles.success;
+      }
+      
+      if (message.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              message,
+              style: TextStyle(color: context.primaryForeground),
+            ),
+            backgroundColor: backgroundColor,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      
+      // Clear the lists for next batch
+      _recentlyBlockedApps.clear();
+      _recentlyUnblockedApps.clear();
+    });
+  }
 
   Widget _buildThemeCard() {
     final themeNotifier = ref.read(themeProvider.notifier);
