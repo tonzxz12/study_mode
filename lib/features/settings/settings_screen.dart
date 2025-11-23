@@ -5,8 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:android_intent_plus/android_intent.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/providers/theme_provider.dart';
+import '../../core/services/shortcut_service.dart';
 import '../../core/theme/styles.dart';
 import '../../core/theme/theme_colors.dart';
 import '../../core/services/app_blocking_service.dart';
@@ -37,6 +40,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
   bool _hasOverlayPermission = false;
   bool _isDeviceAdmin = false;
   bool _hasNotificationPermission = true; // Default to true for older Android
+  bool _hasPopupWindowPermission = false;
+  bool _hasBackgroundWindowPermission = false;
+  bool _hasLockScreenPermission = false;
+  bool _hasShortcutPermission = false;
   List<Map<String, dynamic>> _blockableApps = [
     {'name': 'Facebook', 'package': 'com.facebook.katana', 'blocked': false, 'icon': Icons.facebook, 'color': Color(0xFF1877F2)},
     {'name': 'Instagram', 'package': 'com.instagram.android', 'blocked': false, 'icon': Icons.camera_alt_rounded, 'color': Color(0xFFE4405F)},
@@ -95,6 +102,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
       // When user returns to the app, refresh permission status
+      print('🔄 App resumed, checking all permissions...');
       _checkPermissions();
       
       // Show success message if usage permission was just granted
@@ -256,6 +264,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
     _hasOverlayPermission = await _checkOverlayPermission();
     // Check if we're device admin
     _isDeviceAdmin = await _checkDeviceAdmin();
+    // Check notification permission properly
+    _hasNotificationPermission = await _checkNotificationPermission();
+    // Check additional permissions
+    _hasPopupWindowPermission = await _checkPopupWindowPermission();
+    _hasBackgroundWindowPermission = await _checkBackgroundWindowPermission();
+    _hasLockScreenPermission = await _checkLockScreenPermission();
+    _hasShortcutPermission = await _checkShortcutPermission();
     setState(() {});
   }
 
@@ -282,6 +297,75 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
       return await AppBlockingService.isDeviceAdmin();
     } catch (e) {
       print('Error checking device admin: $e');
+      return false;
+    }
+  }
+
+  Future<bool> _checkNotificationPermission() async {
+    try {
+      final status = await Permission.notification.status;
+      return status.isGranted;
+    } catch (e) {
+      print('Error checking notification permission: $e');
+      // On older Android versions, notifications are granted by default
+      return true;
+    }
+  }
+
+  Future<bool> _checkPopupWindowPermission() async {
+    try {
+      // This is actually the same as system alert window permission
+      final status = await Permission.systemAlertWindow.status;
+      return status.isGranted;
+    } catch (e) {
+      print('Error checking popup window permission: $e');
+      return false;
+    }
+  }
+
+  Future<bool> _checkBackgroundWindowPermission() async {
+    try {
+      // The "Open new windows while running in the background" permission is managed by Android
+      // and there's no direct API to check it. It's typically enabled by default but can be
+      // disabled per-app in "Other permissions" settings.
+      
+      // We'll use system alert window as a proxy since they're related,
+      // but this is not a perfect check for the specific "background windows" permission
+      final alertWindowStatus = await Permission.systemAlertWindow.status;
+      print('🔍 System Alert Window status (proxy check): $alertWindowStatus');
+      
+      // Note: This may show false positives or negatives since we can't directly check
+      // the "Open new windows while running in the background" permission via API
+      return alertWindowStatus.isGranted;
+    } catch (e) {
+      print('Error checking background window permission: $e');
+      return false;
+    }
+  }
+
+  Future<bool> _checkLockScreenPermission() async {
+    try {
+      // Check if notification permission allows lock screen display
+      final notificationStatus = await Permission.notification.status;
+      final criticalAlertsStatus = await Permission.criticalAlerts.status;
+      // Lock screen permission is typically tied to notification permissions
+      return notificationStatus.isGranted || criticalAlertsStatus.isGranted;
+    } catch (e) {
+      print('Error checking lock screen permission: $e');
+      // Default to false if we can't check properly
+      return false;
+    }
+  }
+
+  Future<bool> _checkShortcutPermission() async {
+    try {
+      // Check if shortcuts are supported on this device
+      final isSupported = await ShortcutService.areShortcutsSupported();
+      print('📱 Shortcut support check: $isSupported');
+      return isSupported;
+    } catch (e) {
+      print('Error checking shortcut permission: $e');
+      // Default to false for safety
       return false;
     }
   }
@@ -485,7 +569,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
   }
 
   bool _allPermissionsGranted() {
-    return _hasUsagePermission && _hasOverlayPermission && _isDeviceAdmin;
+    return _hasUsagePermission && 
+           _hasOverlayPermission && 
+           _isDeviceAdmin && 
+           _hasNotificationPermission &&
+           _hasPopupWindowPermission &&
+           _hasBackgroundWindowPermission &&
+           _hasLockScreenPermission &&
+           _hasShortcutPermission;
   }
 
   Widget _buildAppBlockingTile() {
@@ -627,6 +718,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
           icon: Icons.admin_panel_settings_rounded,
           isGranted: _isDeviceAdmin,
           onTap: _requestDeviceAdmin,
+        ),
+        _buildDivider(),
+        _buildPermissionTile(
+          title: 'Display Pop-up Windows',
+          subtitle: 'Allow app to show blocking pop-ups over other apps',
+          icon: Icons.open_in_new_rounded,
+          isGranted: _hasPopupWindowPermission,
+          onTap: _requestPopupWindowPermission,
+        ),
+        _buildDivider(),
+        _buildPermissionTile(
+          title: 'Open new windows while running in the background',
+          subtitle: 'Allow app to start activities and windows from background',
+          icon: Icons.launch_rounded,
+          isGranted: _hasBackgroundWindowPermission,
+          onTap: _requestBackgroundWindowPermission,
+        ),
+        _buildDivider(),
+        _buildPermissionTile(
+          title: 'Show on Lock Screen',
+          subtitle: 'Display blocking notifications on lock screen',
+          icon: Icons.lock_outline_rounded,
+          isGranted: _hasLockScreenPermission,
+          onTap: _requestLockScreenPermission,
+        ),
+        _buildDivider(),
+        _buildPermissionTile(
+          title: 'Home Screen Shortcuts',
+          subtitle: 'Create shortcuts for quick study mode access',
+          icon: Icons.shortcut_rounded,
+          isGranted: _hasShortcutPermission,
+          onTap: _requestShortcutPermission,
         ),
         
         const SizedBox(height: AppStyles.spaceLG),
@@ -1686,26 +1809,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
     );
     
     try {
-      // On Android 13+, we need to request notification permission
-      // For older versions, it's granted by default
-      _hasNotificationPermission = true;
+      // Request notification permission properly
+      final status = await Permission.notification.request();
+      
+      _hasNotificationPermission = status.isGranted;
       setState(() {});
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Notification permission is enabled',
-            style: TextStyle(color: AppStyles.white),
+      if (status.isGranted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Notification permission granted!',
+              style: TextStyle(color: AppStyles.white),
+            ),
+            backgroundColor: AppStyles.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+            ),
           ),
-          backgroundColor: AppStyles.success,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Notification permission denied. Please enable in app settings.',
+              style: TextStyle(color: AppStyles.white),
+            ),
+            backgroundColor: AppStyles.warning,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+            ),
           ),
-        ),
-      );
+        );
+      }
     } catch (e) {
-      print('Error checking notification permission: $e');
+      print('Error requesting notification permission: $e');
     }
   }
 
@@ -1770,6 +1910,382 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
           content: const Text(
             'Error opening Device Administrator settings',
             style: TextStyle(color: AppStyles.white),
+          ),
+          backgroundColor: AppStyles.destructive,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _requestPopupWindowPermission() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'Opening Display Pop-up Windows settings...',
+          style: TextStyle(color: AppStyles.white),
+        ),
+        backgroundColor: AppStyles.info,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+        ),
+      ),
+    );
+    
+    try {
+      // Request system alert window permission which covers popup windows
+      final status = await Permission.systemAlertWindow.request();
+      
+      _hasPopupWindowPermission = status.isGranted;
+      _hasOverlayPermission = status.isGranted; // Update overlay permission too
+      setState(() {});
+      
+      if (status.isGranted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Pop-up window permission granted!',
+              style: TextStyle(color: AppStyles.white),
+            ),
+            backgroundColor: AppStyles.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+            ),
+          ),
+        );
+      } else {
+        // Fallback to manual permission via system settings
+        await AppBlockingService.requestOverlayPermission();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Please enable "Display over other apps" for Study Mode',
+              style: TextStyle(color: AppStyles.white),
+            ),
+            backgroundColor: AppStyles.warning,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error requesting popup window permission: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Error opening display settings',
+            style: TextStyle(color: AppStyles.white),
+          ),
+          backgroundColor: AppStyles.destructive,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _requestBackgroundWindowPermission() async {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Opening background window settings...',
+              style: TextStyle(color: AppStyles.white),
+            ),
+            backgroundColor: AppStyles.info,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+            ),
+          ),
+        );    try {
+      // Show clear manual instructions first
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            '📋 MANUAL PATH: Android Settings → Apps → Study Mode → Other permissions → "Open new windows while running in the background" → Enable',
+            style: TextStyle(color: AppStyles.white),
+          ),
+          backgroundColor: AppStyles.info,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 15),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+          ),
+        ),
+      );
+      
+      // Wait a moment then try to open settings
+      await Future.delayed(const Duration(milliseconds: 1500));
+      
+      print('📱 Opening system settings for background window permission');
+      
+      // Method 1: Go directly to app settings (most reliable)
+      try {
+        final AndroidIntent appSettingsIntent = AndroidIntent(
+          action: 'android.settings.APPLICATION_DETAILS_SETTINGS',
+          data: 'package:com.studymode.app.study_mode_v2',
+        );
+        await appSettingsIntent.launch();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              '📱 Scroll down → Find "Other permissions" → "Open new windows while running in the background" → Toggle ON',
+              style: TextStyle(color: AppStyles.white),
+            ),
+            backgroundColor: AppStyles.info,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+            ),
+          ),
+        );
+        return;
+      } catch (e1) {
+        print('⚠️ App settings intent failed: $e1');
+      }
+      
+      // Method 2: Fallback to all apps settings
+      try {
+        final AndroidIntent allAppsIntent = AndroidIntent(
+          action: 'android.settings.MANAGE_ALL_APPLICATIONS_SETTINGS',
+        );
+        await allAppsIntent.launch();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              '📋 Find "Study Mode" → Tap it → Scroll to "Other permissions" → Enable background windows',
+              style: TextStyle(color: AppStyles.white),
+            ),
+            backgroundColor: AppStyles.warning,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+            ),
+          ),
+        );
+        return;
+      } catch (e2) {
+        print('⚠️ All apps intent failed: $e2');
+      }
+      
+      // Method 3: Try manage applications settings  
+      try {
+        final AndroidIntent manageAppsIntent = AndroidIntent(
+          action: 'android.settings.MANAGE_APPLICATIONS_SETTINGS',
+        );
+        await manageAppsIntent.launch();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              '🔍 Find Study Mode → Permissions → Other permissions → "Open new windows while running in the background"',
+              style: TextStyle(color: AppStyles.white),
+            ),
+            backgroundColor: AppStyles.warning,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+            ),
+          ),
+        );
+        return;
+      } catch (e3) {
+        print('⚠️ Manage apps intent failed: $e3');
+      }
+      
+      // Method 4: Final fallback to standard app settings
+      try {
+        final AndroidIntent appSettingsIntent = AndroidIntent(
+          action: 'android.settings.APPLICATION_DETAILS_SETTINGS',
+          data: 'package:com.studymode.app.study_mode_v2',
+        );
+        await appSettingsIntent.launch();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              '📱 MANUAL STEPS: Scroll down → Other permissions → Open new windows while running in the background → Toggle ON',
+              style: TextStyle(color: AppStyles.white),
+            ),
+            backgroundColor: AppStyles.warning,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+            ),
+          ),
+        );
+      } catch (e3) {
+        print('⚠️ App settings intent failed: $e3');
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              '❌ Unable to open settings. Please manually go to App Settings > Other permissions > Open new windows while running in the background > Allow',
+              style: TextStyle(color: AppStyles.white),
+            ),
+            backgroundColor: AppStyles.destructive,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+            ),
+          ),
+        );
+      }
+      
+    } catch (e) {
+      print('❌ Error requesting background window permission: $e');
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Error: ${e.toString()}',
+            style: const TextStyle(color: AppStyles.white),
+          ),
+          backgroundColor: AppStyles.destructive,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _requestLockScreenPermission() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'Enabling lock screen notifications...',
+          style: TextStyle(color: AppStyles.white),
+        ),
+        backgroundColor: AppStyles.info,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+        ),
+      ),
+    );
+    
+    try {
+      // Request critical alerts permission for lock screen display
+      final status = await Permission.criticalAlerts.request();
+      
+      _hasLockScreenPermission = status.isGranted || _hasNotificationPermission;
+      setState(() {});
+      
+      if (_hasLockScreenPermission) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Lock screen notifications enabled!',
+              style: TextStyle(color: AppStyles.white),
+            ),
+            backgroundColor: AppStyles.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Please enable notification permissions first',
+              style: TextStyle(color: AppStyles.white),
+            ),
+            backgroundColor: AppStyles.warning,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error requesting lock screen permission: $e');
+    }
+  }
+
+  Future<void> _requestShortcutPermission() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'Creating home screen shortcuts...',
+          style: TextStyle(color: AppStyles.white),
+        ),
+        backgroundColor: AppStyles.info,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+        ),
+      ),
+    );
+    
+    try {
+      // Initialize shortcuts
+      await ShortcutService.initialize();
+      
+      // Check if shortcut creation was successful
+      final isSupported = await ShortcutService.areShortcutsSupported();
+      
+      _hasShortcutPermission = isSupported;
+      setState(() {});
+      
+      if (isSupported) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              '🚀 Home screen shortcuts created successfully! Long-press the app icon to see them.',
+              style: TextStyle(color: AppStyles.white),
+            ),
+            backgroundColor: AppStyles.success,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Shortcut creation may not be supported on this device',
+              style: TextStyle(color: AppStyles.white),
+            ),
+            backgroundColor: AppStyles.warning,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppStyles.radiusMD)
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error creating shortcuts: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to create shortcuts: ${e.toString()}',
+            style: const TextStyle(color: AppStyles.white),
           ),
           backgroundColor: AppStyles.destructive,
           behavior: SnackBarBehavior.floating,

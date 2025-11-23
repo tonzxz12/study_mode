@@ -45,5 +45,57 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	
+	<!-- Permissions -->
+	<key>NSCameraUsageDescription</key>
+	<string>Study Mode needs camera access for document scanning and study features.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Study Mode needs microphone access for voice notes and study features.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Study Mode needs calendar access to manage your study schedule and assignments.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>Study Mode needs contacts access for study group features.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Study Mode needs photo library access to save study materials and documents.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Study Mode uses location for location-based study reminders.</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>Study Mode sends notifications for study reminders and app blocking alerts.</string>
+	
+	<!-- Background Modes -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>background-fetch</string>
+		<string>background-processing</string>
+		<string>remote-notification</string>
+		<string>background-app-refresh</string>
+	</array>
+	
+	<!-- App Transport Security -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>firebase.googleapis.com</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+			<key>firebaseapp.com</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
+	
+	<!-- Firebase Configuration -->
+	<key>FIREBASE_ANALYTICS_COLLECTION_ENABLED</key>
+	<true/>
+	<key>GOOGLE_ANALYTICS_IDFV_COLLECTION_ENABLED</key>
+	<true/>
+	
 </dict>
 </plist>

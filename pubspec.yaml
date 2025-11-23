@@ -76,6 +76,9 @@ dependencies:
   # File System Access
   path_provider: ^2.1.4
 
+  # Home Screen Shortcuts
+  quick_actions: ^1.1.0
+
   cupertino_icons: ^1.0.8
 
 dev_dependencies:

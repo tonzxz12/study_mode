@@ -1,0 +1,7 @@
+1.)During focus mode, very easy lang maka alis sa focus mode by pressing the left arrow, and if you try to come back resetted na an timer and focus mode isn't enabled anymore
+Suggestion: If user tries pressing arrow button, they will be met with a sign saying "Are you sure you want to exit? By pressing yes, you will lose unsaved progress sumn sumn" to inform the user that if they do try pressing it, they will lose that timer.
+
+2.) During enabling app blocking like pressing te block facebook, tiktok, youtube etc etc, the small text in a square that pops up at the bottom is delayed so if example you continously blocked all 10 existing at the sigma app, that small text in a box will keep reappearing for each app you blocked like for example I blocked facebook, tiktok, youtube, and spotify really fast, the text at the bottom will just be delayed and going one by one saying "Blocked (app name)" really slow. 
+
+
+3.) The App Blocking doesn't work still, we dont know if its a device as for my case using a Samsung A54, the app blocking doesn't work

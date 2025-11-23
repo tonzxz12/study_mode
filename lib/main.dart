@@ -31,6 +31,7 @@ import 'features/planner/planner_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/auth/auth_wrapper.dart';
 import 'core/services/app_blocking_service.dart';
+import 'core/services/shortcut_service.dart';
 
 
 void main() async {
@@ -134,6 +135,86 @@ class _MainAppWithNavigationState extends ConsumerState<MainAppWithNavigation> w
     _loadRealData();
     // Ensure persistent monitoring when app starts
     _initializeBackgroundMonitoring();
+    // Initialize home screen shortcuts
+    _initializeShortcuts();
+  }
+
+  Future<void> _initializeShortcuts() async {
+    try {
+      // Initialize shortcuts
+      await ShortcutService.initialize();
+      
+      // Set up shortcut handler
+      ShortcutService.setShortcutHandler((String shortcutType) {
+        // Handle shortcut actions based on type
+        _handleQuickAction(shortcutType);
+      });
+      
+      print('✅ Home screen shortcuts initialized');
+    } catch (e) {
+      print('⚠️ Error initializing shortcuts: $e');
+    }
+  }
+
+  void _handleQuickAction(String shortcutType) {
+    print('🚀 Quick action received: $shortcutType');
+    
+    switch (shortcutType) {
+      case 'action_start_timer':
+        // Open timer screen directly
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const TimerScreen()),
+        );
+        break;
+        
+      case 'action_quick_break':
+        // Open timer with quick break preset
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const TimerScreen()),
+        );
+        // Show quick break notification
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('☕ Quick break mode activated!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+        break;
+        
+      case 'action_pomodoro':
+        // Open timer with pomodoro preset
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const TimerScreen()),
+        );
+        // Show pomodoro notification
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🍅 Pomodoro mode activated!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+        break;
+        
+      case 'action_settings':
+        // Navigate to settings tab
+        setState(() {
+          _selectedIndex = 3; // Settings tab index
+        });
+        // Show settings notification
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚙️ Settings opened via shortcut!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+        break;
+        
+      default:
+        print('⚠️ Unknown shortcut type: $shortcutType');
+    }
   }
 
   // Reload blocked apps and restart monitoring
